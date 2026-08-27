@@ -1,16 +1,115 @@
-# React + Vite
+# Axioma — Club de Matemáticas del Tec de Monterrey
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Sitio construido con **React + Vite**, **Tailwind CSS** y **React Router**.
+Es un híbrido: un one-pager con navegación por anclas (scroll suave) para la
+mayoría del contenido, más páginas independientes con rutas reales para
+contenido que no tiene sentido como sección scrolleable (por ahora,
+`/problemas`).
 
-Currently, two official plugins are available:
+## Cómo correr el proyecto
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+npm install
+npm run dev
+```
 
-## React Compiler
+## Dos "modos" de contenido
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Secciones del one-pager** — viven en `/src/components/sections/`. Se
+  renderizan todas juntas dentro de `HomePage.jsx` (ruta `/`) y se navega a
+  ellas con scroll suave, vía anclas (`id="..."`) y los links del Navbar.
+- **Páginas independientes** — viven en `/src/pages/`. Cada una es una ruta
+  real de React Router (ej. `/problemas`) con su propio contenido y su propio
+  `<Navbar />`. No forman parte del scroll del one-pager.
 
-## Expanding the ESLint configuration
+`Problemas.jsx` sigue siendo el componente con todo el contenido (filtros,
+tabla, modal), solo que ya no es una sección scrolleable: ahora vive en
+`/src/pages/Problemas.jsx` y se renderiza dentro de `ProblemasPage.jsx`, que
+es lo que la ruta `/problemas` realmente monta.
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Estructura de carpetas
+
+```
+/src
+  /components
+    Navbar.jsx              # Fijo arriba en todas las rutas. Combina links
+                             # de scroll (one-pager) y un <Link> real a /problemas
+    /sections
+      Hero.jsx               # id="inicio"
+      QuienesSomos.jsx       # id="quienes-somos"
+      Equipo.jsx             # id="equipo"
+      Galeria.jsx            # id="galeria"
+      Contacto.jsx           # id="contacto"
+  /pages
+    HomePage.jsx             # Ruta "/" — Navbar + todas las secciones del one-pager
+    ProblemasPage.jsx        # Ruta "/problemas" — Navbar + Problemas.jsx
+    Problemas.jsx            # Contenido de la página de problemas
+  /hooks
+    useInView.js             # Hook de Intersection Observer para animaciones
+  App.jsx                    # Solo define <BrowserRouter> y las <Route>
+  index.css                  # Tailwind + paleta de colores + scroll-behavior
+```
+
+También existe una carpeta `/server` con un backend de Express de ejemplo,
+sin relación con esta SPA por ahora.
+
+## Cómo funciona la navegación del Navbar
+
+El Navbar (`src/components/Navbar.jsx`) es compartido y **no deben
+modificarlo sin avisar al equipo**, pero vale la pena entender su
+comportamiento:
+
+- Si ya estás en `/`, los links de sección (Inicio, Quiénes Somos, Equipo,
+  Galería, Contacto) hacen `scrollIntoView` directo.
+- Si estás en otra ruta (ej. `/problemas`), esos mismos links navegan a `/`
+  pasando el id de la sección por `state` (`navigate('/', { state: { scrollTo: id } })`).
+  `HomePage.jsx` lee ese `state` en un `useEffect` al montarse y hace el
+  scroll una vez que el one-pager ya está renderizado.
+- El link "Problemas" es un `<Link to="/problemas">` normal de React Router,
+  no un scroll.
+
+## Reglas de trabajo (para evitar conflictos de Git)
+
+Cada persona del equipo trabaja **únicamente dentro de su archivo de sección
+o página**: `/src/components/sections/*.jsx` o `/src/pages/*.jsx` (sin
+contar `HomePage.jsx`). Esto permite que todos trabajen en paralelo sin
+pisarse el código entre sí.
+
+- ✅ Editen libremente el archivo de su sección o página.
+- ✅ Si necesitan un componente reutilizable propio de su sección, créenlo
+  dentro de la misma carpeta o en una subcarpeta (ej.
+  `sections/equipo/MemberCard.jsx`) y expórtenlo desde ahí.
+- 🚫 No modifiquen `App.jsx` — solo define las rutas, no debe llevar lógica
+  ni contenido.
+- 🚫 No modifiquen `HomePage.jsx` — solo importa y ordena las secciones del
+  one-pager.
+- 🚫 No modifiquen el archivo de sección/página de otra persona.
+- 🚫 Si necesitan cambiar algo compartido (`Navbar.jsx`, `index.css`, la
+  paleta de colores, componentes globales), avisen al equipo antes de tocarlo
+  para evitar pisar el trabajo de alguien más.
+
+## Notas por sección/página
+
+- **Hero**: título, subtítulo, botón CTA que navega a `/problemas` (ruta,
+  no scroll), placeholder para animación/logo 3D y flecha de scroll animada.
+- **QuienesSomos**: misión/visión placeholder, imagen grupal placeholder y
+  animación fade-in-up al hacer scroll (usa el hook `useInView`).
+- **Equipo**: grid responsive de tarjetas a partir del array `MIEMBROS`
+  (foto, nombre, rol, LinkedIn/GitHub).
+- **Galería**: grid responsive de imágenes placeholder (array `IMAGENES`) que
+  abren un lightbox/modal simple al hacer click, sin librería externa.
+- **Problemas** (`/src/pages/Problemas.jsx`, montado en `/problemas`):
+  sidebar de filtros (año, tema, tipo), tabla con datos de ejemplo y modal
+  placeholder al hacer click en un problema. **KaTeX ya está instalado**
+  (`katex` en `package.json`) — falta integrarlo para renderizar el LaTeX de
+  los enunciados (ver el `TODO` dentro del archivo).
+- **Contacto**: formulario controlado (Nombre, Correo, Mensaje) sin lógica de
+  envío todavía — ver el `TODO` en `handleSubmit`.
+
+## Paleta de colores
+
+La paleta neutra provisional vive en `src/index.css` bajo el bloque
+`@theme` (`--color-brand-50` a `--color-brand-900`). Úsenla con las clases
+`bg-brand-*`, `text-brand-*`, `border-brand-*`, etc. Cuando el club defina su
+identidad visual, solo hay que actualizar esos valores para que se propague
+a todo el sitio.
