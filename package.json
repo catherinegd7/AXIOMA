@@ -10,10 +10,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@paper-design/shaders-react": "^0.0.80",
     "@tailwindcss/vite": "^4.3.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "framer-motion": "^13.1.1",
     "katex": "^0.18.4",
     "mongoose": "^9.9.4",
     "react": "^19.2.8",
