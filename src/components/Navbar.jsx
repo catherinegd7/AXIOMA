@@ -50,21 +50,21 @@ export default function Navbar() {
     event.preventDefault()
     goToSection(id)
   }
-
+ {/*border-b border-brand-200 */}
   return (
     <header
-      className={`fixed top-0 inset-x-0 z-50 border-b border-brand-200 bg-brand-50/90 backdrop-blur transition-[padding] duration-300 ${
+      className={`fixed top-0 inset-x-0 z-50  bg-brand-[#FFB401]/90 backdrop-blur transition-[padding] duration-300 ${
         isScrolled ? 'py-0' : 'py-1.5'
       }`}
     >
       <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2 sm:px-6">
-        <a
+       <a
           href="#inicio"
           onClick={(event) => handleScrollClick(event, 'inicio')}
           className="flex items-center gap-2"
         >
           <AxiomaMark className="h-7 w-7" />
-          <img src="/axioma-wordmark.png" alt="Axioma" className="h-5 w-auto" />
+          {/*<img src="/AXIOMA LOGOS (3).png" alt="Axioma" className="h-5 w-auto" />*/} 
         </a>
 
         <ul className="hidden items-center gap-6 md:flex">
@@ -109,7 +109,7 @@ export default function Navbar() {
               {activeId === CONTACTO_LINK.id && (
                 <motion.span
                   layoutId="nav-underline"
-                  className="absolute -bottom-1 left-0 right-0 h-0.5 rounded-full bg-brand-900"
+                  className="absolute -bottom-1 left-0 right-0 h-0.5 rounded-full bg-brand-[#FFB401]/90"
                   transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                 />
               )}
@@ -120,7 +120,7 @@ export default function Navbar() {
         <button
           type="button"
           onClick={() => setIsOpen((prev) => !prev)}
-          className="inline-flex items-center justify-center rounded-md p-2 text-brand-700 md:hidden"
+          className="inline-flex items-center justify-center rounded-md p-2 text-brand-700 md:hidden "
           aria-label="Abrir menú de navegación"
           aria-expanded={isOpen}
         >
@@ -133,8 +133,9 @@ export default function Navbar() {
         </button>
       </nav>
 
+{/* border-t border-brand-200*/}
       {isOpen && (
-        <ul className="flex flex-col gap-1 border-t border-brand-200 bg-brand-50 px-4 pb-4 md:hidden">
+        <ul className="flex flex-col gap-1  bg-brand-[#FFB401]/90 backdrop-blur px-4 pb-4 md:hidden">
           {SCROLL_LINKS.map((link) => (
             <li key={link.id}>
               <a
