@@ -13,9 +13,11 @@ export default function Hero() {
       className="relative flex min-h-screen scroll-mt-16 flex-col items-center justify-center gap-10 px-4 pt-16 text-center sm:px-6"
     >
       <div className="flex flex-col items-center gap-4">
-        <h1 className="text-5xl font-bold tracking-tight text-brand-900 sm:text-7xl">
-          Axioma
-        </h1>
+        <img
+            src="/AXIOMA LOGOS (2).png"
+            alt="Axioma"
+            className="h-50 w-auto"
+          />
         <p className="max-w-xl text-lg text-brand-600 sm:text-xl">
           El club de matemáticas del Tec de Monterrey. Únete a una comunidad
           que resuelve problemas, comparte ideas y se prepara para

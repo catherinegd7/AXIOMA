@@ -43,9 +43,13 @@ export default function Navbar() {
         <a
           href="#inicio"
           onClick={(event) => handleScrollClick(event, 'inicio')}
-          className="text-lg font-semibold tracking-tight text-brand-900"
+          className="flex items-center"
         >
-          Axioma
+          <img
+            src="/AXIOMA LOGOS (2).png"
+            alt="Axioma"
+            className="h-10 w-auto"
+          />
         </a>
 
         <ul className="hidden items-center gap-6 md:flex">
