@@ -49,7 +49,7 @@ export default function Hero() {
               'linear-gradient(135deg, #FFB401 0%, #E57505 45%, #B70B0D 100%)',
           }}
         >
-          Matemáticas · Tecnología · Comunidad
+          AXIOMA | Asociación X Interés Olímpico Matemático del Tecnológico de Monterrey
         </span>
 
        <img
@@ -59,9 +59,7 @@ export default function Hero() {
       />
 
         <p className="max-w-xl text-lg text-white/85 sm:text-xl">
-          El club de matemáticas del Tec de Monterrey. Únete a una comunidad
-          que resuelve problemas, comparte ideas y se prepara para
-          competencias.
+          Capítulo Estudiantil oficial de la Sociedad Matemática Mexicana (SMM). Un espacio dedicado al entrenamiento de alto rendimiento, la divulgación STEM y la resolución de problemas lógicos de nivel olímpico.
         </p>
       </motion.div>
 
