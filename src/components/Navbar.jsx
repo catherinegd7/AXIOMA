@@ -10,6 +10,7 @@ const SCROLL_LINKS = [
   { id: 'inicio', label: 'Inicio' },
   { id: 'quienes-somos', label: 'Quiénes Somos' },
   { id: 'equipo', label: 'Equipo' },
+  { id: 'eventos', label: 'Eventos' },
   { id: 'galeria', label: 'Galería' },
 ]
 

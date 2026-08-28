@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import PhotoCarousel from '../motion/PhotoCarousel'
 import { fadeUp, revealProps, staggerContainer } from '../motion/variants'
 
 // Sección Galería (id="galeria")
@@ -113,6 +114,13 @@ export default function Galeria() {
       >
         Galería
       </motion.h2>
+
+      {/* Carrusel de fotos destacadas: se arrastra/desliza con touch,
+          trackpad o las flechas. Complementa las polaroids de abajo,
+          no las reemplaza. */}
+      <motion.div variants={fadeUp} {...revealProps} className="mb-20">
+        <PhotoCarousel items={IMAGENES} />
+      </motion.div>
 
       {/* Polaroids "pegadas" con leve inclinación, como un corcho de fotos */}
       <motion.div
