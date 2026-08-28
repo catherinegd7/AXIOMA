@@ -67,7 +67,7 @@ export default function Hero() {
         className="relative flex flex-col items-center gap-4"
       >
         <span
-          className="bg-clip-text text-xs font-semibold uppercase tracking-[0.35em] text-transparent"
+          className="bg-clip-text text-xs font-semibold uppercase tracking-[0.35em] text-transparent mt-6 sm:text-sm inline-block"
           style={{
             backgroundImage:
               'linear-gradient(135deg, #FFB401 0%, #E57505 45%, #B70B0D 100%)',
