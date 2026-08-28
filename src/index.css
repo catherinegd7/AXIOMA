@@ -1,11 +1,14 @@
 @import 'tailwindcss';
 
 /*
-  Paleta neutra provisional. Cambien estos valores cuando definan
-  la identidad visual definitiva de Axioma; se usan en todo el sitio
-  a través de las clases bg-brand-*, text-brand-*, etc.
+  Paleta neutra para el sitio (texto, fondos, bordes, botones).
+  Cambien estos valores cuando definan la identidad visual definitiva
+  de Axioma para el resto de la página.
 */
 @theme {
+  --font-display: 'Yeseva One', serif;
+  --font-hand: 'Caveat', cursive;
+
   --color-brand-50: #f8fafc;
   --color-brand-100: #f1f5f9;
   --color-brand-200: #e2e8f0;
@@ -24,4 +27,14 @@ html {
 
 body {
   @apply bg-brand-50 text-brand-900 antialiased;
+}
+
+/* Oculta el cursor nativo solo en dispositivos con mouse real, donde
+   CustomCursor.jsx dibuja el punto/anillo que lo reemplaza. */
+@media (pointer: fine) {
+  body,
+  a,
+  button {
+    cursor: none;
+  }
 }
