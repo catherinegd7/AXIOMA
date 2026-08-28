@@ -66,6 +66,7 @@ export default function Hero() {
       </motion.div>
 
       {/* Halo shader decorativo: reemplaza el placeholder de animación/logo 3D */}
+      {/* 
       <motion.div
         initial="hidden"
         animate="visible"
@@ -92,6 +93,7 @@ export default function Hero() {
           speed={0.9}
         />
       </motion.div>
+      */}
 
       <motion.button
         type="button"

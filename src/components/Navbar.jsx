@@ -39,16 +39,16 @@ export default function Navbar() {
 
   return (
     <header className="fixed top-0 inset-x-0 z-50 bg-brand-[#FFB401]/90 backdrop-blur">
-      <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
+      <nav className="mx-auto min-h pb-2 flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
         <a
           href="#inicio"
           onClick={(event) => handleScrollClick(event, 'inicio')}
           className="flex items-center"
         >
           <img
-            src="/AXIOMA LOGOS (2).png"
+            src="/AXIOMA LOGOS (3).png"
             alt="Axioma"
-            className="h-10 w-auto"
+            className="h-12 w-auto"
           />
         </a>
 
