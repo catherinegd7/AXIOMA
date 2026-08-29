@@ -112,4 +112,4 @@ La paleta neutra provisional vive en `src/index.css` bajo el bloque
 `@theme` (`--color-brand-50` a `--color-brand-900`). Úsenla con las clases
 `bg-brand-*`, `text-brand-*`, `border-brand-*`, etc. Cuando el club defina su
 identidad visual, solo hay que actualizar esos valores para que se propague
-a todo el sitio.
+a todo el sitio web.
