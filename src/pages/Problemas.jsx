@@ -62,6 +62,38 @@ const AÑOS = ['2024', '2023', '2022']
 const TEMAS = ['Álgebra', 'Combinatoria', 'Geometría', 'Teoría de Números']
 const TIPOS = ['AMC', 'Putnam', 'Interno Axioma', 'Olimpiada Estatal']
 
+// ---------------------------------------------------------------------------
+// Carpetas (Category): la API regresa una lista PLANA de carpetas, cada una
+// con un campo `parent` (el _id de su carpeta padre, o null si es de nivel
+// superior) — así vive guardado en Mongo (ver server/src/models/Category.js).
+// Para dibujar un árbol en la pantalla, primero hay que reconstruirlo.
+//
+// buildCategoryTree convierte esa lista plana en un árbol de verdad: cada
+// carpeta obtiene un array `children` con sus subcarpetas ya anidadas.
+// También regresa `byId`, un mapa rápido de _id -> carpeta, útil para el
+// siguiente paso.
+function buildCategoryTree(categorias) {
+  const byId = new Map(categorias.map((c) => [c._id, { ...c, children: [] }]))
+  const raices = []
+  byId.forEach((nodo) => {
+    const papa = nodo.parent ? byId.get(nodo.parent) : null
+    if (papa) papa.children.push(nodo)
+    else raices.push(nodo)
+  })
+  return { raices, byId }
+}
+
+// Si seleccionas la carpeta "Interno Axioma", también quieres ver los
+// problemas de "2024" y "2023" adentro — no solo problemas que apunten
+// EXACTAMENTE a "Interno Axioma". Esta función regresa el _id de una
+// carpeta MÁS los _id de todas sus subcarpetas (a cualquier profundidad).
+function collectDescendantIds(nodo) {
+  return nodo.children.reduce(
+    (ids, hijo) => [...ids, ...collectDescendantIds(hijo)],
+    [nodo._id],
+  )
+}
+
 const DIFICULTAD_STYLES = {
   Fácil: 'bg-emerald-100 text-emerald-700',
   Media: 'bg-amber-100 text-amber-700',
@@ -86,6 +118,58 @@ function FilterGroup({ title, options, selected, onToggle }) {
             />
             {option}
           </label>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Una fila del árbol de carpetas: se dibuja a sí misma, y luego se dibuja a
+// sí misma otra vez por cada hijo (con depth+1) — así es como un árbol se
+// vuelve una lista de casillas con sangría creciente, sin importar cuántos
+// niveles tenga en realidad.
+function CategoryTreeNode({ nodo, depth, seleccionadas, onToggle }) {
+  return (
+    <div>
+      <label
+        className="flex items-center gap-2 text-sm text-brand-600"
+        style={{ paddingLeft: `${depth * 14}px` }}
+      >
+        <input
+          type="checkbox"
+          checked={seleccionadas.includes(nodo._id)}
+          onChange={() => onToggle(nodo._id)}
+          className="h-4 w-4 rounded border-brand-300"
+        />
+        {nodo.name}
+      </label>
+      {nodo.children.map((hijo) => (
+        <CategoryTreeNode
+          key={hijo._id}
+          nodo={hijo}
+          depth={depth + 1}
+          seleccionadas={seleccionadas}
+          onToggle={onToggle}
+        />
+      ))}
+    </div>
+  )
+}
+
+function CategoryFilter({ raices, seleccionadas, onToggle }) {
+  if (raices.length === 0) return null
+  return (
+    <div className="flex flex-col gap-2">
+      <h3 className="text-sm font-semibold text-brand-900">Carpetas</h3>
+      <div className="flex flex-col gap-1">
+        {raices.map((nodo) => (
+          <CategoryTreeNode
+            key={nodo._id}
+            nodo={nodo}
+            depth={0}
+            seleccionadas={seleccionadas}
+            onToggle={onToggle}
+          />
         ))}
       </div>
     </div>
@@ -335,6 +419,8 @@ export default function Problemas() {
   const [años, setAños] = useState([])
   const [temas, setTemas] = useState([])
   const [tipos, setTipos] = useState([])
+  const [categorias, setCategorias] = useState([])
+  const [categoriasSeleccionadas, setCategoriasSeleccionadas] = useState([])
   const [problemaSeleccionado, setProblemaSeleccionado] = useState(null)
 
   // auth arranca leyendo lo que haya guardado en localStorage, para que si
@@ -354,7 +440,33 @@ export default function Problemas() {
       .then(setProblemas)
       .catch((err) => setErrorCarga(err.message))
       .finally(() => setCargando(false))
+
+    // Las carpetas se piden aparte: si esta llamada falla, preferimos que
+    // la tabla de problemas siga funcionando (solo sin filtro de carpetas)
+    // en vez de tumbar toda la página.
+    apiFetch('/api/categories')
+      .then(setCategorias)
+      .catch(() => setCategorias([]))
   }, [])
+
+  // Reconstruye el árbol de carpetas cada vez que cambia la lista de
+  // categorías (normalmente solo una vez, al cargar la página).
+  const { raices: arbolCategorias, byId: categoriasPorId } = useMemo(
+    () => buildCategoryTree(categorias),
+    [categorias],
+  )
+
+  // "Efectivas" = las carpetas que el usuario marcó, YA expandidas para
+  // incluir todas sus subcarpetas. Esto es lo que realmente se compara
+  // contra problema.category al filtrar.
+  const categoriasEfectivas = useMemo(() => {
+    const ids = new Set()
+    categoriasSeleccionadas.forEach((id) => {
+      const nodo = categoriasPorId.get(id)
+      if (nodo) collectDescendantIds(nodo).forEach((d) => ids.add(d))
+    })
+    return ids
+  }, [categoriasSeleccionadas, categoriasPorId])
 
   const handleAuthSuccess = (data) => {
     setAuth(data)
@@ -376,9 +488,15 @@ export default function Problemas() {
       if (años.length && !años.includes(p.año)) return false
       if (temas.length && !temas.includes(p.tema)) return false
       if (tipos.length && !tipos.includes(p.tipo)) return false
+      // Igual que los demás filtros: si no se seleccionó ninguna carpeta,
+      // no filtra nada. Si se seleccionó alguna, el problema debe caer
+      // dentro de esa carpeta o de alguna de sus subcarpetas.
+      if (categoriasSeleccionadas.length && !categoriasEfectivas.has(p.category)) {
+        return false
+      }
       return true
     })
-  }, [problemas, años, temas, tipos])
+  }, [problemas, años, temas, tipos, categoriasSeleccionadas, categoriasEfectivas])
 
   return (
     <section className="mx-auto max-w-6xl px-4 py-24 sm:px-6">
@@ -416,6 +534,11 @@ export default function Problemas() {
             options={TIPOS}
             selected={tipos}
             onToggle={toggle(setTipos)}
+          />
+          <CategoryFilter
+            raices={arbolCategorias}
+            seleccionadas={categoriasSeleccionadas}
+            onToggle={toggle(setCategoriasSeleccionadas)}
           />
         </aside>
 
