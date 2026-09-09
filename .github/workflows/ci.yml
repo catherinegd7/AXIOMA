@@ -1,0 +1,58 @@
+# Corre automáticamente en cada push y cada Pull Request, a cualquier rama.
+# Tres pasos: revisar estilo/errores obvios (lint), correr las pruebas del
+# backend contra una base de datos MongoDB real y desechable (el "services"
+# de abajo), y confirmar que el frontend efectivamente compila (build).
+#
+# Nota honesta: al momento de agregar este workflow, `npm run lint` YA
+# fallaba en main por dos archivos sin relación a este branch (Navbar.jsx,
+# CustomCursor.jsx) -- no se tocaron a propósito, no son "mi parte". Este
+# workflow simplemente los va a mostrar en rojo hasta que alguien los
+# arregle, lo cual es información real, no un problema de este workflow.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    # Levanta un MongoDB real, aislado, que solo vive mientras corre este
+    # job -- no es el mismo Mongo que usas en tu laptop, y desaparece solo
+    # al terminar. Queda disponible en localhost:27017 para los pasos de
+    # abajo, igual que tu Mongo local.
+    services:
+      mongodb:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand(\"ping\").ok' --quiet"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Preparar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependencias exactas del lockfile
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Pruebas del backend
+        run: npm run test
+        env:
+          MONGO_TEST_URI: mongodb://localhost:27017/axioma_ci
+
+      - name: Confirmar que el frontend compila
+        run: npm run build

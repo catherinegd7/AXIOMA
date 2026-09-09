@@ -18,7 +18,11 @@ import mongoose from 'mongoose'
 
 process.env.JWT_SECRET = 'clave-de-prueba-no-usar-en-produccion'
 
-const TEST_DB_URI = 'mongodb://localhost:27017/axioma_test'
+// En tu máquina, esto apunta al Mongo local de siempre, en una base
+// separada. En CI (ver .github/workflows/ci.yml), MONGO_TEST_URI se define
+// ahí para apuntar al contenedor de Mongo que levanta el workflow --
+// mismo código, distinta dirección según dónde se corra.
+const TEST_DB_URI = process.env.MONGO_TEST_URI || 'mongodb://localhost:27017/axioma_test'
 
 beforeAll(async () => {
   await mongoose.connect(TEST_DB_URI)
