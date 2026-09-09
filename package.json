@@ -7,15 +7,19 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "server": "nodemon --watch server server/src/server.js",
+    "seed": "node server/src/seed.js"
   },
   "dependencies": {
     "@paper-design/shaders-react": "^0.0.80",
     "@tailwindcss/vite": "^4.3.3",
+    "bcryptjs": "^2.4.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "framer-motion": "^13.1.1",
+    "jsonwebtoken": "^9.0.2",
     "katex": "^0.18.4",
     "mongoose": "^9.9.4",
     "react": "^19.2.8",
