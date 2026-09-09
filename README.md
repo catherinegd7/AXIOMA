@@ -1,5 +1,7 @@
 # Axioma — Club de Matemáticas del Tec de Monterrey
 
+![CI](https://github.com/catherinegd7/AXIOMA/actions/workflows/ci.yml/badge.svg)
+
 Sitio construido con **React + Vite**, **Tailwind CSS** y **React Router**.
 Es un híbrido: un one-pager con navegación por anclas (scroll suave) para la
 mayoría del contenido, más páginas independientes con rutas reales para
@@ -48,6 +50,18 @@ localmente:
 problemas y comentarios viejos antes de volver a crearlos (las cuentas de
 usuario NO se borran).
 
+### Pruebas del backend
+
+```bash
+npm run test
+```
+
+Corre contra el mismo Mongo local, pero en una base separada
+(`axioma_test`) que se limpia sola entre cada prueba — nunca toca los datos
+reales de `axioma`. Este mismo comando corre automáticamente en GitHub
+Actions en cada push/PR (ver el badge arriba y `.github/workflows/ci.yml`),
+junto con `npm run lint` y `npm run build`.
+
 ## Dos "modos" de contenido
 
 - **Secciones del one-pager** — viven en `/src/components/sections/`. Se
@@ -91,12 +105,16 @@ el proyecto" arriba para levantarlo localmente.
 
 ```
 /server/src
-  server.js               # Arranca todo: conecta Mongo, monta las rutas
+  app.js                  # Arma la app de Express (rutas, cors, rate limit) —
+                           # sin conectar a Mongo ni escuchar en un puerto
+  server.js               # El entry point real: conecta Mongo + app.listen()
   seed.js                 # Llena la base de datos con datos de ejemplo
+  test-setup.js           # Conecta a una base de datos aparte para las pruebas
   /models                 # Blueprints de Mongoose: User, Category, Problem, Comment
   /routes                 # auth, categories, problems, comments
   /middleware
     auth.js               # Bloquea rutas que requieren sesión iniciada
+  /__tests__              # Pruebas con vitest + supertest (npm run test)
 ```
 
 ## Cómo funciona la navegación del Navbar
@@ -147,10 +165,11 @@ pisarse el código entre sí.
 - **Problemas** (`/src/pages/Problemas.jsx`, montado en `/problemas`):
   sidebar de filtros (año, tema, tipo) y tabla, ahora alimentados por el
   backend (`GET /api/problems`) en vez de un array escrito a mano. El modal
-  de cada problema muestra sus comentarios y permite escribir uno nuevo —
-  para eso hace falta iniciar sesión, con un formulario de login/registro
-  que aparece dentro del propio modal (no se agregó una ruta nueva a
-  propósito, para no tocar `App.jsx`). Además hay una carpeta anidada
+  de cada problema muestra sus comentarios y permite escribir uno nuevo (o
+  borrar los tuyos) — para comentar hace falta iniciar sesión, con un
+  formulario de login/registro que aparece dentro del propio modal (no se
+  agregó una ruta nueva a propósito, para no tocar `App.jsx`). Además hay
+  una carpeta anidada
   ("Carpetas" en el sidebar) que refleja las categorías de la base de
   datos. El enunciado se renderiza con **KaTeX**: cualquier parte del texto
   entre signos de pesos (`$...$`) se trata como LaTeX real (ver
