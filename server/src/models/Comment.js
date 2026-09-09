@@ -33,6 +33,7 @@ const commentSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
+      maxlength: [2000, 'El comentario no puede pasar de 2000 caracteres.'],
     },
   },
   { timestamps: true }, // createdAt es lo que se usa para ordenar los comentarios
