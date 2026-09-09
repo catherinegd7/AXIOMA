@@ -285,7 +285,7 @@ function AuthInlineForm({ onAuthSuccess }) {
   )
 }
 
-function ComentarioItem({ comentario }) {
+function ComentarioItem({ comentario, esPropio, onEliminar }) {
   const fecha = new Date(comentario.createdAt).toLocaleString('es-MX', {
     day: 'numeric',
     month: 'short',
@@ -294,10 +294,24 @@ function ComentarioItem({ comentario }) {
   })
   return (
     <div className="rounded-lg border border-brand-200 bg-brand-50 p-3">
-      <p className="mb-1 text-xs font-semibold text-brand-900">
-        {comentario.author?.username || 'Usuario'}{' '}
-        <span className="font-normal text-brand-400">· {fecha}</span>
-      </p>
+      <div className="mb-1 flex items-start justify-between gap-3">
+        <p className="text-xs font-semibold text-brand-900">
+          {comentario.author?.username || 'Usuario'}{' '}
+          <span className="font-normal text-brand-400">· {fecha}</span>
+        </p>
+        {/* Solo el autor ve este botón — el backend también lo exige por su
+            cuenta (ver comments.routes.js), esto es solo para no mostrar un
+            botón que de todos modos fallaría. */}
+        {esPropio && (
+          <button
+            type="button"
+            onClick={onEliminar}
+            className="shrink-0 text-xs text-rose-500 hover:underline"
+          >
+            Eliminar
+          </button>
+        )}
+      </div>
       <p className="text-sm text-brand-700">{comentario.body}</p>
     </div>
   )
@@ -328,6 +342,31 @@ function ProblemaModal({ problema, onClose, auth, onAuthSuccess, onAuthExpired }
       cancelado = true
     }
   }, [problema._id])
+
+  // Cierra el modal con la tecla Escape, además del click afuera que ya
+  // existía. Estándar de accesibilidad para cualquier modal: alguien
+  // navegando con teclado (o sin mouse) necesita una forma de salir.
+  useEffect(() => {
+    function alPresionarTecla(event) {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', alPresionarTecla)
+    return () => window.removeEventListener('keydown', alPresionarTecla)
+  }, [onClose])
+
+  const handleEliminarComentario = async (commentId) => {
+    try {
+      await apiFetch(`/api/problems/${problema._id}/comments/${commentId}`, {
+        method: 'DELETE',
+        token: auth.token,
+      })
+      setComentarios((prev) => prev.filter((c) => c._id !== commentId))
+    } catch (err) {
+      if (err.status === 401) onAuthExpired()
+      // Un 403/404 aquí sería raro (alguien más lo borró en otra pestaña,
+      // por ejemplo) — no vale la pena una UI especial para ese caso.
+    }
+  }
 
   const handleEnviarComentario = async (event) => {
     event.preventDefault()
@@ -364,11 +403,16 @@ function ProblemaModal({ problema, onClose, auth, onAuthSuccess, onAuthExpired }
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="titulo-modal-problema"
         className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl bg-brand-50 p-6 shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="mb-4 flex items-start justify-between gap-4">
-          <h3 className="text-xl font-semibold text-brand-900">{problema.titulo}</h3>
+          <h3 id="titulo-modal-problema" className="text-xl font-semibold text-brand-900">
+            {problema.titulo}
+          </h3>
           <button
             type="button"
             onClick={onClose}
@@ -396,7 +440,12 @@ function ProblemaModal({ problema, onClose, auth, onAuthSuccess, onAuthExpired }
 
           <div className="flex flex-col gap-2">
             {comentarios.map((c) => (
-              <ComentarioItem key={c._id} comentario={c} />
+              <ComentarioItem
+                key={c._id}
+                comentario={c}
+                esPropio={Boolean(auth && c.author?._id === auth.user.id)}
+                onEliminar={() => handleEliminarComentario(c._id)}
+              />
             ))}
           </div>
         </div>
@@ -409,18 +458,24 @@ function ProblemaModal({ problema, onClose, auth, onAuthSuccess, onAuthExpired }
                 onChange={(e) => setNuevoComentario(e.target.value)}
                 placeholder="Escribe un comentario..."
                 rows={3}
+                maxLength={2000}
                 className="rounded-lg border border-brand-300 px-3 py-2 text-sm"
               />
               {errorComentario && (
                 <p className="text-sm text-rose-600">{errorComentario}</p>
               )}
-              <button
-                type="submit"
-                disabled={enviandoComentario}
-                className="self-end rounded-lg bg-brand-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-              >
-                {enviandoComentario ? 'Enviando...' : 'Comentar'}
-              </button>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-brand-400">
+                  {nuevoComentario.length}/2000
+                </span>
+                <button
+                  type="submit"
+                  disabled={enviandoComentario}
+                  className="rounded-lg bg-brand-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                >
+                  {enviandoComentario ? 'Enviando...' : 'Comentar'}
+                </button>
+              </div>
             </form>
           ) : (
             <AuthInlineForm onAuthSuccess={onAuthSuccess} />
