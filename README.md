@@ -8,10 +8,45 @@ contenido que no tiene sentido como sección scrolleable (por ahora,
 
 ## Cómo correr el proyecto
 
+### Solo el frontend (lo de siempre)
+
 ```bash
 npm install
 npm run dev
 ```
+
+### Frontend + backend (necesario para `/problemas`)
+
+`/problemas` ahora lee datos reales de una base de datos (Mongo) a través de
+un backend en Express — ya no es un array escrito a mano. Para correr todo
+localmente:
+
+1. **Instala MongoDB una sola vez** (macOS, con [Homebrew](https://brew.sh)):
+   ```bash
+   brew tap mongodb/brew
+   brew install mongodb-community mongosh
+   brew services start mongodb-community
+   ```
+2. **Crea tu `.env`** copiando `.env.example` y generando tu propia clave:
+   ```bash
+   cp .env.example .env
+   node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+   # pega el resultado como valor de JWT_SECRET en tu .env
+   ```
+3. **Instala dependencias y llena la base de datos con datos de ejemplo**:
+   ```bash
+   npm install
+   npm run seed
+   ```
+4. **Corre ambos servidores** (en dos terminales separadas):
+   ```bash
+   npm run server   # backend, http://localhost:4000
+   npm run dev      # frontend, http://localhost:5173
+   ```
+
+`npm run seed` es seguro de correr más de una vez: limpia categorías,
+problemas y comentarios viejos antes de volver a crearlos (las cuentas de
+usuario NO se borran).
 
 ## Dos "modos" de contenido
 
@@ -50,8 +85,19 @@ es lo que la ruta `/problemas` realmente monta.
   index.css                  # Tailwind + paleta de colores + scroll-behavior
 ```
 
-También existe una carpeta `/server` con un backend de Express de ejemplo,
-sin relación con esta SPA por ahora.
+También existe `/server` — el backend en Express + MongoDB que sirve la
+página de Problemas (categorías, problemas y comentarios). Ver "Cómo correr
+el proyecto" arriba para levantarlo localmente.
+
+```
+/server/src
+  server.js               # Arranca todo: conecta Mongo, monta las rutas
+  seed.js                 # Llena la base de datos con datos de ejemplo
+  /models                 # Blueprints de Mongoose: User, Category, Problem, Comment
+  /routes                 # auth, categories, problems, comments
+  /middleware
+    auth.js               # Bloquea rutas que requieren sesión iniciada
+```
 
 ## Cómo funciona la navegación del Navbar
 
@@ -99,10 +145,14 @@ pisarse el código entre sí.
 - **Galería**: grid responsive de imágenes placeholder (array `IMAGENES`) que
   abren un lightbox/modal simple al hacer click, sin librería externa.
 - **Problemas** (`/src/pages/Problemas.jsx`, montado en `/problemas`):
-  sidebar de filtros (año, tema, tipo), tabla con datos de ejemplo y modal
-  placeholder al hacer click en un problema. **KaTeX ya está instalado**
-  (`katex` en `package.json`) — falta integrarlo para renderizar el LaTeX de
-  los enunciados (ver el `TODO` dentro del archivo).
+  sidebar de filtros (año, tema, tipo) y tabla, ahora alimentados por el
+  backend (`GET /api/problems`) en vez de un array escrito a mano. El modal
+  de cada problema muestra sus comentarios y permite escribir uno nuevo —
+  para eso hace falta iniciar sesión, con un formulario de login/registro
+  que aparece dentro del propio modal (no se agregó una ruta nueva a
+  propósito, para no tocar `App.jsx`). **KaTeX ya está instalado**
+  (`katex` en `package.json`) — todavía falta integrarlo para renderizar el
+  LaTeX de los enunciados (ver el `TODO` dentro del archivo).
 - **Contacto**: formulario controlado (Nombre, Correo, Mensaje) sin lógica de
   envío todavía — ver el `TODO` en `handleSubmit`.
 
