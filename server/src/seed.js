@@ -10,12 +10,17 @@ import 'dotenv/config'
 import mongoose from 'mongoose'
 import Category from './models/Category.js'
 import Problem from './models/Problem.js'
+import Comment from './models/Comment.js'
 
 async function seed() {
   await mongoose.connect(process.env.MONGO_URI)
 
-  // Empezamos limpio cada vez que se corre este script.
-  await Promise.all([Category.deleteMany({}), Problem.deleteMany({})])
+  // Empezamos limpio cada vez que se corre este script. Comment también se
+  // limpia aquí: como los problemas se borran y se vuelven a crear (con IDs
+  // nuevos), cualquier comentario viejo quedaría apuntando a un problema que
+  // ya no existe. Ojo: NO borramos User — las cuentas de la gente no
+  // deberían desaparecer solo porque alguien volvió a correr este script.
+  await Promise.all([Category.deleteMany({}), Problem.deleteMany({}), Comment.deleteMany({})])
 
   // Carpetas de nivel superior (una por tipo de concurso).
   const interno = await Category.create({ name: 'Interno Axioma' })
