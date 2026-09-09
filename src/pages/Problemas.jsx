@@ -1,66 +1,66 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 // KaTeX ya está instalado como dependencia (ver package.json).
 // TODO equipo: cuando los problemas incluyan LaTeX, usar katex.renderToString(...)
 // (o el paquete react-katex) para renderizar el enunciado/opciones dentro del modal.
 // Ejemplo: import katex from 'katex'; import 'katex/dist/katex.min.css'
 
+// ---------------------------------------------------------------------------
+// ESQUELETO GENERAL DE ESTE ARCHIVO (para orientarse antes de leer el código
+// real más abajo):
+//
+//   1. Configuración: dirección de la API + helper apiFetch() para hablar
+//      con el backend (fetch + manejo de errores en un solo lugar).
+//   2. Constantes de filtros (AÑOS, TEMAS, TIPOS) — igual que antes.
+//   3. FilterGroup       -> la lista de checkboxes de un filtro.
+//   4. AuthInlineForm    -> formulario de login/registro, se muestra dentro
+//                           del modal cuando nadie ha iniciado sesión.
+//   5. ComentarioItem    -> un comentario ya publicado.
+//   6. ProblemaModal     -> el modal de un problema: enunciado + comentarios.
+//   7. Problemas         -> el componente principal: pide los problemas a la
+//                           API, aplica los filtros, dibuja la tabla y decide
+//                           qué modal mostrar. Antes leía todo de un array
+//                           escrito a mano (PROBLEMAS); ahora ese array ya no
+//                           existe — los datos vienen de la base de datos.
+// ---------------------------------------------------------------------------
+
+// Dirección del backend. En desarrollo, Vite expone las variables que
+// empiezan con VITE_ dentro de import.meta.env — viene de tu archivo .env.
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
+
+// Aquí es donde guardamos la sesión en el navegador para que no se pierda
+// al recargar la página (localStorage sobrevive a un refresh; el estado de
+// React no).
+const AUTH_STORAGE_KEY = 'axioma_auth'
+
+// apiFetch centraliza las 3 cosas que se repetirían en cada llamada a la
+// API: mandar el body como JSON, agregar el token de sesión si existe, y
+// convertir una respuesta de error en un Error de JavaScript normal que se
+// pueda atrapar con try/catch.
+async function apiFetch(path, { method = 'GET', body, token } = {}) {
+  const headers = { 'Content-Type': 'application/json' }
+  if (token) headers.Authorization = `Bearer ${token}`
+
+  const res = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  })
+
+  // Intentamos leer JSON incluso en errores, porque el backend manda
+  // { error: '...' } en sus respuestas de error (ver server/src/routes/*).
+  const data = await res.json().catch(() => null)
+
+  if (!res.ok) {
+    const error = new Error(data?.error || 'Error de red inesperado.')
+    error.status = res.status
+    throw error
+  }
+  return data
+}
+
 const AÑOS = ['2024', '2023', '2022']
 const TEMAS = ['Álgebra', 'Combinatoria', 'Geometría', 'Teoría de Números']
 const TIPOS = ['AMC', 'Putnam', 'Interno Axioma', 'Olimpiada Estatal']
-
-const PROBLEMAS = [
-  {
-    id: 'P-001',
-    titulo: 'Suma de raíces de un polinomio cúbico',
-    año: '2024',
-    tema: 'Álgebra',
-    tipo: 'Interno Axioma',
-    dificultad: 'Media',
-    exito: 62,
-    enunciado:
-      'Placeholder del enunciado del problema. Aquí eventualmente se renderizará LaTeX con KaTeX.',
-  },
-  {
-    id: 'P-002',
-    titulo: 'Conteo de caminos en una cuadrícula',
-    año: '2023',
-    tema: 'Combinatoria',
-    tipo: 'AMC',
-    dificultad: 'Fácil',
-    exito: 81,
-    enunciado: 'Placeholder del enunciado del problema.',
-  },
-  {
-    id: 'P-003',
-    titulo: 'Ángulos en un triángulo inscrito',
-    año: '2024',
-    tema: 'Geometría',
-    tipo: 'Olimpiada Estatal',
-    dificultad: 'Difícil',
-    exito: 34,
-    enunciado: 'Placeholder del enunciado del problema.',
-  },
-  {
-    id: 'P-004',
-    titulo: 'Divisibilidad y congruencias',
-    año: '2022',
-    tema: 'Teoría de Números',
-    tipo: 'Putnam',
-    dificultad: 'Difícil',
-    exito: 28,
-    enunciado: 'Placeholder del enunciado del problema.',
-  },
-  {
-    id: 'P-005',
-    titulo: 'Desigualdad AM-GM aplicada',
-    año: '2023',
-    tema: 'Álgebra',
-    tipo: 'Interno Axioma',
-    dificultad: 'Media',
-    exito: 55,
-    enunciado: 'Placeholder del enunciado del problema.',
-  },
-]
 
 const DIFICULTAD_STYLES = {
   Fácil: 'bg-emerald-100 text-emerald-700',
@@ -92,11 +92,279 @@ function FilterGroup({ title, options, selected, onToggle }) {
   )
 }
 
+// Formulario de inicio de sesión / registro. Vive DENTRO del modal en vez de
+// en su propia página: agregar una página nueva significaría tocar App.jsx
+// (que define las rutas), y ese archivo es compartido con el resto del
+// equipo — así que este formulario se muestra en el mismo lugar donde hace
+// falta (justo antes de comentar) sin necesitar una ruta nueva.
+function AuthInlineForm({ onAuthSuccess }) {
+  const [modo, setModo] = useState('login') // 'login' | 'signup'
+  const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  const [error, setError] = useState(null)
+
+  const handleSubmit = async (event) => {
+    event.preventDefault()
+    setError(null)
+    setEnviando(true)
+    try {
+      const path = modo === 'login' ? '/api/auth/login' : '/api/auth/signup'
+      const body =
+        modo === 'login' ? { email, password } : { username, email, password }
+      const data = await apiFetch(path, { method: 'POST', body })
+      onAuthSuccess(data) // { token, user } — el componente padre lo guarda
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3 rounded-xl border border-brand-200 bg-brand-100 p-4">
+      <p className="text-sm text-brand-700">
+        {modo === 'login'
+          ? 'Inicia sesión para comentar.'
+          : 'Crea una cuenta para comentar.'}
+      </p>
+
+      {modo === 'signup' && (
+        <input
+          type="text"
+          placeholder="Nombre de usuario"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          required
+          className="rounded-lg border border-brand-300 px-3 py-2 text-sm"
+        />
+      )}
+      <input
+        type="email"
+        placeholder="Correo"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        required
+        className="rounded-lg border border-brand-300 px-3 py-2 text-sm"
+      />
+      <input
+        type="password"
+        placeholder="Contraseña"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        required
+        minLength={8}
+        className="rounded-lg border border-brand-300 px-3 py-2 text-sm"
+      />
+
+      {error && <p className="text-sm text-rose-600">{error}</p>}
+
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="submit"
+          disabled={enviando}
+          className="rounded-lg bg-brand-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+        >
+          {enviando ? 'Un momento...' : modo === 'login' ? 'Iniciar sesión' : 'Registrarme'}
+        </button>
+        <button
+          type="button"
+          onClick={() => setModo(modo === 'login' ? 'signup' : 'login')}
+          className="text-sm text-brand-600 underline"
+        >
+          {modo === 'login' ? 'Crear una cuenta' : 'Ya tengo cuenta'}
+        </button>
+      </div>
+    </form>
+  )
+}
+
+function ComentarioItem({ comentario }) {
+  const fecha = new Date(comentario.createdAt).toLocaleString('es-MX', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+  return (
+    <div className="rounded-lg border border-brand-200 bg-brand-50 p-3">
+      <p className="mb-1 text-xs font-semibold text-brand-900">
+        {comentario.author?.username || 'Usuario'}{' '}
+        <span className="font-normal text-brand-400">· {fecha}</span>
+      </p>
+      <p className="text-sm text-brand-700">{comentario.body}</p>
+    </div>
+  )
+}
+
+function ProblemaModal({ problema, onClose, auth, onAuthSuccess, onAuthExpired }) {
+  // Arranca en `true` a propósito: este componente se desmonta y se vuelve
+  // a montar cada vez que se cierra el modal y se abre con OTRO problema
+  // (ver más abajo, donde se le pone key={problema._id}), así que "recién
+  // montado" siempre significa "todavía no llegaron los comentarios de
+  // este problema en particular" — no hace falta resetearlo a mano.
+  const [comentarios, setComentarios] = useState([])
+  const [cargandoComentarios, setCargandoComentarios] = useState(true)
+  const [nuevoComentario, setNuevoComentario] = useState('')
+  const [enviandoComentario, setEnviandoComentario] = useState(false)
+  const [errorComentario, setErrorComentario] = useState(null)
+
+  useEffect(() => {
+    let cancelado = false
+    apiFetch(`/api/problems/${problema._id}/comments`)
+      .then((data) => {
+        if (!cancelado) setComentarios(data)
+      })
+      .finally(() => {
+        if (!cancelado) setCargandoComentarios(false)
+      })
+    return () => {
+      cancelado = true
+    }
+  }, [problema._id])
+
+  const handleEnviarComentario = async (event) => {
+    event.preventDefault()
+    const body = nuevoComentario.trim()
+    if (!body) return
+
+    setEnviandoComentario(true)
+    setErrorComentario(null)
+    try {
+      const comentario = await apiFetch(`/api/problems/${problema._id}/comments`, {
+        method: 'POST',
+        token: auth.token,
+        body: { body },
+      })
+      setComentarios((prev) => [...prev, comentario])
+      setNuevoComentario('')
+    } catch (err) {
+      if (err.status === 401) {
+        // El token guardado ya no sirve (expiró o es inválido): cerramos la
+        // sesión localmente para que vuelva a aparecer el formulario de
+        // login en vez de un botón de comentar que siempre falla.
+        onAuthExpired()
+      } else {
+        setErrorComentario(err.message)
+      }
+    } finally {
+      setEnviandoComentario(false)
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-brand-900/50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl bg-brand-50 p-6 shadow-xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <h3 className="text-xl font-semibold text-brand-900">{problema.titulo}</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-brand-400 hover:text-brand-900"
+            aria-label="Cerrar"
+          >
+            ✕
+          </button>
+        </div>
+        <p className="mb-4 text-sm text-brand-500">
+          {problema.codigo} · {problema.tema} · {problema.tipo} · {problema.año}
+        </p>
+        {/* TODO equipo: renderizar problema.enunciado con KaTeX aquí */}
+        <p className="mb-6 text-brand-700">{problema.enunciado}</p>
+
+        <div className="flex-1 overflow-y-auto">
+          <h4 className="mb-2 text-sm font-semibold text-brand-900">Comentarios</h4>
+
+          {cargandoComentarios && (
+            <p className="text-sm text-brand-400">Cargando comentarios...</p>
+          )}
+
+          {!cargandoComentarios && comentarios.length === 0 && (
+            <p className="text-sm text-brand-400">Sé el primero en comentar.</p>
+          )}
+
+          <div className="flex flex-col gap-2">
+            {comentarios.map((c) => (
+              <ComentarioItem key={c._id} comentario={c} />
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-4">
+          {auth ? (
+            <form onSubmit={handleEnviarComentario} className="flex flex-col gap-2">
+              <textarea
+                value={nuevoComentario}
+                onChange={(e) => setNuevoComentario(e.target.value)}
+                placeholder="Escribe un comentario..."
+                rows={3}
+                className="rounded-lg border border-brand-300 px-3 py-2 text-sm"
+              />
+              {errorComentario && (
+                <p className="text-sm text-rose-600">{errorComentario}</p>
+              )}
+              <button
+                type="submit"
+                disabled={enviandoComentario}
+                className="self-end rounded-lg bg-brand-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              >
+                {enviandoComentario ? 'Enviando...' : 'Comentar'}
+              </button>
+            </form>
+          ) : (
+            <AuthInlineForm onAuthSuccess={onAuthSuccess} />
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Problemas() {
+  const [problemas, setProblemas] = useState([])
+  const [cargando, setCargando] = useState(true)
+  const [errorCarga, setErrorCarga] = useState(null)
+
   const [años, setAños] = useState([])
   const [temas, setTemas] = useState([])
   const [tipos, setTipos] = useState([])
   const [problemaSeleccionado, setProblemaSeleccionado] = useState(null)
+
+  // auth arranca leyendo lo que haya guardado en localStorage, para que si
+  // ya habías iniciado sesión antes, sigas logueado después de recargar la
+  // página. Si no hay nada guardado (o está corrupto), arranca en null.
+  const [auth, setAuth] = useState(() => {
+    try {
+      const guardado = localStorage.getItem(AUTH_STORAGE_KEY)
+      return guardado ? JSON.parse(guardado) : null
+    } catch {
+      return null
+    }
+  })
+
+  useEffect(() => {
+    apiFetch('/api/problems')
+      .then(setProblemas)
+      .catch((err) => setErrorCarga(err.message))
+      .finally(() => setCargando(false))
+  }, [])
+
+  const handleAuthSuccess = (data) => {
+    setAuth(data)
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(data))
+  }
+
+  const handleLogout = () => {
+    setAuth(null)
+    localStorage.removeItem(AUTH_STORAGE_KEY)
+  }
 
   const toggle = (setter) => (value) =>
     setter((prev) =>
@@ -104,19 +372,29 @@ export default function Problemas() {
     )
 
   const problemasFiltrados = useMemo(() => {
-    return PROBLEMAS.filter((p) => {
+    return problemas.filter((p) => {
       if (años.length && !años.includes(p.año)) return false
       if (temas.length && !temas.includes(p.tema)) return false
       if (tipos.length && !tipos.includes(p.tipo)) return false
       return true
     })
-  }, [años, temas, tipos])
+  }, [problemas, años, temas, tipos])
 
   return (
     <section className="mx-auto max-w-6xl px-4 py-24 sm:px-6">
-      <h2 className="mb-12 text-center text-3xl font-bold text-brand-900 sm:text-4xl">
-        Archivo de Problemas
-      </h2>
+      <div className="mb-12 flex flex-col items-center gap-2 text-center">
+        <h2 className="text-3xl font-bold text-brand-900 sm:text-4xl">
+          Archivo de Problemas
+        </h2>
+        {auth && (
+          <p className="text-sm text-brand-500">
+            Conectado como <strong>{auth.user.username}</strong> ·{' '}
+            <button onClick={handleLogout} className="underline">
+              cerrar sesión
+            </button>
+          </p>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 gap-8 md:grid-cols-[220px_1fr]">
         {/* Sidebar de filtros */}
@@ -153,27 +431,46 @@ export default function Problemas() {
               </tr>
             </thead>
             <tbody className="divide-y divide-brand-200 bg-brand-50">
-              {problemasFiltrados.map((problema) => (
-                <tr
-                  key={problema.id}
-                  onClick={() => setProblemaSeleccionado(problema)}
-                  className="cursor-pointer transition-colors hover:bg-brand-100"
-                >
-                  <td className="px-4 py-3 font-mono text-brand-500">
-                    {problema.id}
+              {cargando && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-8 text-center text-brand-400">
+                    Cargando problemas...
                   </td>
-                  <td className="px-4 py-3 text-brand-900">{problema.titulo}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`rounded-full px-2 py-1 text-xs font-medium ${DIFICULTAD_STYLES[problema.dificultad]}`}
-                    >
-                      {problema.dificultad}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-brand-600">{problema.exito}%</td>
                 </tr>
-              ))}
-              {problemasFiltrados.length === 0 && (
+              )}
+
+              {!cargando && errorCarga && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-8 text-center text-rose-600">
+                    No se pudo conectar con el servidor: {errorCarga}
+                  </td>
+                </tr>
+              )}
+
+              {!cargando &&
+                !errorCarga &&
+                problemasFiltrados.map((problema) => (
+                  <tr
+                    key={problema._id}
+                    onClick={() => setProblemaSeleccionado(problema)}
+                    className="cursor-pointer transition-colors hover:bg-brand-100"
+                  >
+                    <td className="px-4 py-3 font-mono text-brand-500">
+                      {problema.codigo}
+                    </td>
+                    <td className="px-4 py-3 text-brand-900">{problema.titulo}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`rounded-full px-2 py-1 text-xs font-medium ${DIFICULTAD_STYLES[problema.dificultad]}`}
+                      >
+                        {problema.dificultad}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-brand-600">{problema.exito}%</td>
+                  </tr>
+                ))}
+
+              {!cargando && !errorCarga && problemasFiltrados.length === 0 && (
                 <tr>
                   <td colSpan={4} className="px-4 py-8 text-center text-brand-400">
                     No hay problemas que coincidan con los filtros.
@@ -185,37 +482,15 @@ export default function Problemas() {
         </div>
       </div>
 
-      {/* Modal placeholder */}
       {problemaSeleccionado && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-brand-900/50 p-4"
-          onClick={() => setProblemaSeleccionado(null)}
-        >
-          <div
-            className="w-full max-w-lg rounded-2xl bg-brand-50 p-6 shadow-xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mb-4 flex items-start justify-between gap-4">
-              <h3 className="text-xl font-semibold text-brand-900">
-                {problemaSeleccionado.titulo}
-              </h3>
-              <button
-                type="button"
-                onClick={() => setProblemaSeleccionado(null)}
-                className="text-brand-400 hover:text-brand-900"
-                aria-label="Cerrar"
-              >
-                ✕
-              </button>
-            </div>
-            <p className="mb-4 text-sm text-brand-500">
-              {problemaSeleccionado.id} · {problemaSeleccionado.tema} ·{' '}
-              {problemaSeleccionado.tipo} · {problemaSeleccionado.año}
-            </p>
-            {/* TODO equipo: renderizar problemaSeleccionado.enunciado con KaTeX aquí */}
-            <p className="text-brand-700">{problemaSeleccionado.enunciado}</p>
-          </div>
-        </div>
+        <ProblemaModal
+          key={problemaSeleccionado._id}
+          problema={problemaSeleccionado}
+          onClose={() => setProblemaSeleccionado(null)}
+          auth={auth}
+          onAuthSuccess={handleAuthSuccess}
+          onAuthExpired={handleLogout}
+        />
       )}
     </section>
   )
