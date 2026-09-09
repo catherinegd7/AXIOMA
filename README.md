@@ -150,9 +150,11 @@ pisarse el código entre sí.
   de cada problema muestra sus comentarios y permite escribir uno nuevo —
   para eso hace falta iniciar sesión, con un formulario de login/registro
   que aparece dentro del propio modal (no se agregó una ruta nueva a
-  propósito, para no tocar `App.jsx`). **KaTeX ya está instalado**
-  (`katex` en `package.json`) — todavía falta integrarlo para renderizar el
-  LaTeX de los enunciados (ver el `TODO` dentro del archivo).
+  propósito, para no tocar `App.jsx`). Además hay una carpeta anidada
+  ("Carpetas" en el sidebar) que refleja las categorías de la base de
+  datos. El enunciado se renderiza con **KaTeX**: cualquier parte del texto
+  entre signos de pesos (`$...$`) se trata como LaTeX real (ver
+  `renderEnunciado` dentro del archivo).
 - **Contacto**: formulario controlado (Nombre, Correo, Mensaje) sin lógica de
   envío todavía — ver el `TODO` en `handleSubmit`.
 

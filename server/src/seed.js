@@ -93,7 +93,12 @@ async function seed() {
       tipo: 'Interno Axioma',
       dificultad: 'Media',
       exito: 55,
-      enunciado: 'Placeholder del enunciado del problema.',
+      // Este es un enunciado real (no placeholder), a propósito: es el
+      // único problema sembrado con LaTeX real ($...$), para poder probar
+      // que el renderizado con KaTeX funciona de verdad y no solo con
+      // texto plano.
+      enunciado:
+        'Sea $a, b > 0$. Demuestra que $\\dfrac{a+b}{2} \\geq \\sqrt{ab}$, y determina cuándo se cumple la igualdad.',
     },
   ])
 

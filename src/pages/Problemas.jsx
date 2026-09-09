@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-// KaTeX ya está instalado como dependencia (ver package.json).
-// TODO equipo: cuando los problemas incluyan LaTeX, usar katex.renderToString(...)
-// (o el paquete react-katex) para renderizar el enunciado/opciones dentro del modal.
-// Ejemplo: import katex from 'katex'; import 'katex/dist/katex.min.css'
+import katex from 'katex'
+import 'katex/dist/katex.min.css'
 
 // ---------------------------------------------------------------------------
 // ESQUELETO GENERAL DE ESTE ARCHIVO (para orientarse antes de leer el código
@@ -56,6 +54,29 @@ async function apiFetch(path, { method = 'GET', body, token } = {}) {
     throw error
   }
   return data
+}
+
+// Un enunciado es texto normal que PUEDE traer fórmulas metidas entre signos
+// de pesos, como en LaTeX de verdad: "Sea $a>0$, demuestra que...". Esta
+// función separa el texto en pedazos (partes normales y partes de fórmula)
+// y solo las partes de fórmula se mandan a KaTeX para volverse matemáticas
+// de verdad; el resto se deja como texto plano tal cual.
+//
+// katex.renderToString(...) regresa un pedazo de HTML (no JSX) — por eso
+// hace falta dangerouslySetInnerHTML para insertarlo. Esto SOLO es seguro
+// aquí porque el enunciado viene de datos que nosotros mismos sembramos en
+// la base de datos (seed.js), no de algo que un visitante haya escrito; los
+// comentarios (que sí son texto de visitantes) nunca pasan por esta función.
+function renderEnunciado(texto) {
+  const partes = texto.split(/(\$[^$]+\$)/g)
+  return partes.map((parte, i) => {
+    const esFormula = parte.startsWith('$') && parte.endsWith('$') && parte.length > 1
+    if (!esFormula) return <span key={i}>{parte}</span>
+
+    const latex = parte.slice(1, -1)
+    const html = katex.renderToString(latex, { throwOnError: false })
+    return <span key={i} dangerouslySetInnerHTML={{ __html: html }} />
+  })
 }
 
 const AÑOS = ['2024', '2023', '2022']
@@ -360,8 +381,7 @@ function ProblemaModal({ problema, onClose, auth, onAuthSuccess, onAuthExpired }
         <p className="mb-4 text-sm text-brand-500">
           {problema.codigo} · {problema.tema} · {problema.tipo} · {problema.año}
         </p>
-        {/* TODO equipo: renderizar problema.enunciado con KaTeX aquí */}
-        <p className="mb-6 text-brand-700">{problema.enunciado}</p>
+        <p className="mb-6 text-brand-700">{renderEnunciado(problema.enunciado)}</p>
 
         <div className="flex-1 overflow-y-auto">
           <h4 className="mb-2 text-sm font-semibold text-brand-900">Comentarios</h4>
