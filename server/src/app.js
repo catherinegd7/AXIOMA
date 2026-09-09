@@ -23,21 +23,38 @@ const app = express()
 app.use(cors({ origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173' }))
 app.use(express.json())
 
-// Sin esto, nada le impide a alguien probar miles de contraseñas por
-// segundo contra /api/auth/login (fuerza bruta). Este límite es por IP: como
-// mucho 20 intentos de login/registro cada 15 minutos. Se salta en pruebas
+// Dos niveles de límite, ambos por IP, ambos apagados bajo pruebas
 // automatizadas (NODE_ENV=test, que vitest pone solo) para que la suite de
-// pruebas -- que llama a estas rutas muchas veces seguidas a propósito --
-// no se bloquee a sí misma.
+// pruebas no se bloquee a sí misma llamando estas rutas muchas veces seguidas
+// a propósito:
+//
+// 1. Uno GENERAL para toda la API (por si alguien intenta saturar cualquier
+//    ruta, no solo login).
+// 2. Uno más ESTRICTO solo para /api/auth, porque ahí es donde de verdad
+//    importa: sin esto, nada le impide a alguien probar miles de
+//    contraseñas por segundo (fuerza bruta).
 if (process.env.NODE_ENV !== 'test') {
-  const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 20,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: 'Demasiados intentos. Espera unos minutos e intenta de nuevo.' },
-  })
-  app.use('/api/auth', authLimiter)
+  app.use(
+    '/api',
+    rateLimit({
+      windowMs: 15 * 60 * 1000,
+      max: 300,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { error: 'Demasiadas peticiones. Espera unos minutos e intenta de nuevo.' },
+    }),
+  )
+
+  app.use(
+    '/api/auth',
+    rateLimit({
+      windowMs: 15 * 60 * 1000,
+      max: 20,
+      standardHeaders: true,
+      legacyHeaders: false,
+      message: { error: 'Demasiados intentos. Espera unos minutos e intenta de nuevo.' },
+    }),
+  )
 }
 
 app.use('/api/auth', authRoutes)

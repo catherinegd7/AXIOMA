@@ -90,6 +90,20 @@ describe('POST /api/auth/login', () => {
     expect(res.status).toBe(401)
   })
 
+  it('el límite de intentos no bloquea las pruebas (NODE_ENV=test lo desactiva)', async () => {
+    // app.js apaga el rate limiter cuando NODE_ENV==='test' -- 20 sería el
+    // límite real en producción, así que 25 intentos seguidos aquí prueban
+    // justamente que ese apagado funciona. Si esto alguna vez regresara un
+    // 429, sería una señal de que el rate limiter se está aplicando también
+    // en pruebas por error.
+    for (let i = 0; i < 25; i++) {
+      const res = await request(app)
+        .post('/api/auth/login')
+        .send({ email: 'nadie@test.com', password: 'lo-que-sea' })
+      expect(res.status).not.toBe(429)
+    }
+  })
+
   it('rechaza un correo que no existe, sin decir que "no existe"', async () => {
     // No revisamos el mensaje exacto, solo que se rechace igual que una
     // contraseña incorrecta (401) -- ver el comentario en auth.routes.js
