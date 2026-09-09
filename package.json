@@ -9,7 +9,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "server": "nodemon --watch server server/src/server.js",
-    "seed": "node server/src/seed.js"
+    "seed": "node server/src/seed.js",
+    "test": "vitest run"
   },
   "dependencies": {
     "@paper-design/shaders-react": "^0.0.80",
@@ -37,6 +38,8 @@
     "eslint-plugin-react-refresh": "^0.5.4",
     "globals": "^17.11.0",
     "nodemon": "^3.1.14",
-    "vite": "^8.2.2"
+    "supertest": "^7.2.2",
+    "vite": "^8.2.2",
+    "vitest": "^5.0.0"
   }
 }
