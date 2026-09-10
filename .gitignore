@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# Secretos y configuración local (claves, URLs de base de datos, etc.).
+# Cada quien crea su propio .env a partir de .env.example.
+.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -1,5 +1,7 @@
 # Axioma — Club de Matemáticas del Tec de Monterrey
 
+![CI](https://github.com/catherinegd7/AXIOMA/actions/workflows/ci.yml/badge.svg)
+
 Sitio construido con **React + Vite**, **Tailwind CSS** y **React Router**.
 Es un híbrido: un one-pager con navegación por anclas (scroll suave) para la
 mayoría del contenido, más páginas independientes con rutas reales para
@@ -8,10 +10,57 @@ contenido que no tiene sentido como sección scrolleable (por ahora,
 
 ## Cómo correr el proyecto
 
+### Solo el frontend (lo de siempre)
+
 ```bash
 npm install
 npm run dev
 ```
+
+### Frontend + backend (necesario para `/problemas`)
+
+`/problemas` ahora lee datos reales de una base de datos (Mongo) a través de
+un backend en Express — ya no es un array escrito a mano. Para correr todo
+localmente:
+
+1. **Instala MongoDB una sola vez** (macOS, con [Homebrew](https://brew.sh)):
+   ```bash
+   brew tap mongodb/brew
+   brew install mongodb-community mongosh
+   brew services start mongodb-community
+   ```
+2. **Crea tu `.env`** copiando `.env.example` y generando tu propia clave:
+   ```bash
+   cp .env.example .env
+   node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+   # pega el resultado como valor de JWT_SECRET en tu .env
+   ```
+3. **Instala dependencias y llena la base de datos** (93 problemas reales de Putnam y la OMMU, ver `server/src/data/problemasReales.js`):
+   ```bash
+   npm install
+   npm run seed
+   ```
+4. **Corre ambos servidores** (en dos terminales separadas):
+   ```bash
+   npm run server   # backend, http://localhost:4000
+   npm run dev      # frontend, http://localhost:5173
+   ```
+
+`npm run seed` es seguro de correr más de una vez: limpia categorías,
+problemas y comentarios viejos antes de volver a crearlos (las cuentas de
+usuario NO se borran).
+
+### Pruebas del backend
+
+```bash
+npm run test
+```
+
+Corre contra el mismo Mongo local, pero en una base separada
+(`axioma_test`) que se limpia sola entre cada prueba — nunca toca los datos
+reales de `axioma`. Este mismo comando corre automáticamente en GitHub
+Actions en cada push/PR (ver el badge arriba y `.github/workflows/ci.yml`),
+junto con `npm run lint` y `npm run build`.
 
 ## Dos "modos" de contenido
 
@@ -50,8 +99,26 @@ es lo que la ruta `/problemas` realmente monta.
   index.css                  # Tailwind + paleta de colores + scroll-behavior
 ```
 
-También existe una carpeta `/server` con un backend de Express de ejemplo,
-sin relación con esta SPA por ahora.
+También existe `/server` — el backend en Express + MongoDB que sirve la
+página de Problemas (categorías, problemas y comentarios). Ver "Cómo correr
+el proyecto" arriba para levantarlo localmente.
+
+```
+/server/src
+  app.js                  # Arma la app de Express (rutas, cors, rate limit) —
+                           # sin conectar a Mongo ni escuchar en un puerto
+  server.js               # El entry point real: conecta Mongo + app.listen()
+  seed.js                 # Llena la base de datos con el contenido de /data
+  test-setup.js           # Conecta a una base de datos aparte para las pruebas
+  /data
+    problemasReales.js    # 93 problemas reales (Putnam, OMMU) — agregar más
+                           # problemas es editar este archivo, no seed.js
+  /models                 # Blueprints de Mongoose: User, Category, Problem, Comment
+  /routes                 # auth, categories, problems, comments
+  /middleware
+    auth.js               # Bloquea rutas que requieren sesión iniciada
+  /__tests__              # Pruebas con vitest + supertest (npm run test)
+```
 
 ## Cómo funciona la navegación del Navbar
 
@@ -99,10 +166,17 @@ pisarse el código entre sí.
 - **Galería**: grid responsive de imágenes placeholder (array `IMAGENES`) que
   abren un lightbox/modal simple al hacer click, sin librería externa.
 - **Problemas** (`/src/pages/Problemas.jsx`, montado en `/problemas`):
-  sidebar de filtros (año, tema, tipo), tabla con datos de ejemplo y modal
-  placeholder al hacer click en un problema. **KaTeX ya está instalado**
-  (`katex` en `package.json`) — falta integrarlo para renderizar el LaTeX de
-  los enunciados (ver el `TODO` dentro del archivo).
+  sidebar de filtros (año, tema, tipo) y tabla, ahora alimentados por el
+  backend (`GET /api/problems`) en vez de un array escrito a mano. El modal
+  de cada problema muestra sus comentarios y permite escribir uno nuevo (o
+  borrar los tuyos) — para comentar hace falta iniciar sesión, con un
+  formulario de login/registro que aparece dentro del propio modal (no se
+  agregó una ruta nueva a propósito, para no tocar `App.jsx`). Además hay
+  una carpeta anidada
+  ("Carpetas" en el sidebar) que refleja las categorías de la base de
+  datos. El enunciado se renderiza con **KaTeX**: cualquier parte del texto
+  entre signos de pesos (`$...$`) se trata como LaTeX real (ver
+  `renderEnunciado` dentro del archivo).
 - **Contacto**: formulario controlado (Nombre, Correo, Mensaje) sin lógica de
   envío todavía — ver el `TODO` en `handleSubmit`.
 

@@ -18,4 +18,17 @@ export default defineConfig([
       parserOptions: { ecmaFeatures: { jsx: true } },
     },
   },
+  // El backend (server/) es código Node, no código de navegador: usa
+  // variables globales distintas (process, etc.) y no tiene componentes de
+  // React, así que apaga las reglas específicas de React para esta carpeta.
+  {
+    files: ['server/**/*.js'],
+    languageOptions: {
+      globals: globals.node,
+    },
+    rules: {
+      'react-hooks/rules-of-hooks': 'off',
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 ])
