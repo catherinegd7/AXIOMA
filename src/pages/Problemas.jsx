@@ -659,22 +659,6 @@ function ProblemaCard({ problema, tilt, onOpen }) {
       <h3 className="text-base font-semibold text-brand-900 transition-colors group-hover:text-[#B70B0D]">
         {formatearTitulo(problema)}
       </h3>
-
-      {/* Barra de % de éxito: crece de 0 al valor real cuando la tarjeta
-          aparece — el mismo tipo de animación "cuenta hacia arriba" que ya
-          usa <Counter> en el Hero, pero como barra en vez de número. */}
-      <div className="mt-1 flex items-center gap-2">
-        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-brand-100">
-          <motion.div
-            className="h-full rounded-full"
-            style={{ backgroundImage: AXIOMA_GRADIENT }}
-            initial={{ width: 0 }}
-            animate={{ width: `${problema.exito}%` }}
-            transition={{ duration: 0.9, ease: EASE }}
-          />
-        </div>
-        <span className="text-xs font-medium text-brand-500">{problema.exito}%</span>
-      </div>
     </motion.button>
   )
 }
