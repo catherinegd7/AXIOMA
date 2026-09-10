@@ -57,31 +57,56 @@ async function apiFetch(path, { method = 'GET', body, token } = {}) {
 }
 
 // Un enunciado es texto normal que PUEDE traer fórmulas metidas entre signos
-// de pesos, como en LaTeX de verdad: "Sea $a>0$, demuestra que...". Esta
-// función separa el texto en pedazos (partes normales y partes de fórmula)
-// y solo las partes de fórmula se mandan a KaTeX para volverse matemáticas
-// de verdad; el resto se deja como texto plano tal cual.
+// de pesos, como en LaTeX de verdad: "Sea $a>0$, demuestra que...". Hay dos
+// tipos de fórmula, igual que en LaTeX real:
+//   $formula$    -> "en línea", metida dentro del párrafo de texto
+//   $$formula$$  -> "en pantalla" (display), centrada en su propia línea,
+//                   un poco más grande — para ecuaciones importantes
+// Primero separamos los bloques $$...$$ (porque si buscáramos $...$ primero,
+// cada "$$" se leería mal, como si fueran dos fórmulas vacías pegadas).
+// Lo que queda entre bloques display se vuelve a separar por $...$ normal.
 //
 // katex.renderToString(...) regresa un pedazo de HTML (no JSX) — por eso
 // hace falta dangerouslySetInnerHTML para insertarlo. Esto SOLO es seguro
 // aquí porque el enunciado viene de datos que nosotros mismos sembramos en
-// la base de datos (seed.js), no de algo que un visitante haya escrito; los
-// comentarios (que sí son texto de visitantes) nunca pasan por esta función.
-function renderEnunciado(texto) {
+// la base de datos (ver server/src/data/problemasReales.js), no de algo que
+// un visitante haya escrito; los comentarios (que sí son texto de
+// visitantes) nunca pasan por esta función.
+function renderFormulasEnLinea(texto, prefijoKey) {
   const partes = texto.split(/(\$[^$]+\$)/g)
   return partes.map((parte, i) => {
     const esFormula = parte.startsWith('$') && parte.endsWith('$') && parte.length > 1
-    if (!esFormula) return <span key={i}>{parte}</span>
+    if (!esFormula) return <span key={`${prefijoKey}-${i}`}>{parte}</span>
 
     const latex = parte.slice(1, -1)
     const html = katex.renderToString(latex, { throwOnError: false })
-    return <span key={i} dangerouslySetInnerHTML={{ __html: html }} />
+    return <span key={`${prefijoKey}-${i}`} dangerouslySetInnerHTML={{ __html: html }} />
   })
 }
 
-const AÑOS = ['2024', '2023', '2022']
-const TEMAS = ['Álgebra', 'Combinatoria', 'Geometría', 'Teoría de Números']
-const TIPOS = ['AMC', 'Putnam', 'Interno Axioma', 'Olimpiada Estatal']
+function renderEnunciado(texto) {
+  const bloques = texto.split(/(\$\$[\s\S]+?\$\$)/g)
+  return bloques.map((bloque, i) => {
+    const esDisplay = bloque.startsWith('$$') && bloque.endsWith('$$') && bloque.length > 4
+    if (!esDisplay) return renderFormulasEnLinea(bloque, i)
+
+    const latex = bloque.slice(2, -2)
+    const html = katex.renderToString(latex, { throwOnError: false, displayMode: true })
+    return <div key={i} className="my-2 overflow-x-auto" dangerouslySetInnerHTML={{ __html: html }} />
+  })
+}
+
+const AÑOS = ['2021', '2022', '2023', '2024', '2025', '2026']
+const TEMAS = [
+  'Álgebra',
+  'Álgebra Lineal',
+  'Análisis',
+  'Combinatoria',
+  'Geometría',
+  'Probabilidad',
+  'Teoría de Números',
+]
+const TIPOS = ['Putnam', 'OMMU Primera Ronda', 'OMMU Nacional']
 
 // ---------------------------------------------------------------------------
 // Carpetas (Category): la API regresa una lista PLANA de carpetas, cada una
@@ -425,7 +450,12 @@ function ProblemaModal({ problema, onClose, auth, onAuthSuccess, onAuthExpired }
         <p className="mb-4 text-sm text-brand-500">
           {problema.codigo} · {problema.tema} · {problema.tipo} · {problema.año}
         </p>
-        <p className="mb-6 text-brand-700">{renderEnunciado(problema.enunciado)}</p>
+        {/* div, no <p>: una fórmula en "display mode" se renderiza como un
+            <div>, y un <div> no puede vivir legalmente dentro de un <p> en
+            HTML (el mismo tipo de error que se ve en Contacto.jsx). */}
+        <div className="mb-6 whitespace-pre-line text-brand-700">
+          {renderEnunciado(problema.enunciado)}
+        </div>
 
         <div className="flex-1 overflow-y-auto">
           <h4 className="mb-2 text-sm font-semibold text-brand-900">Comentarios</h4>
