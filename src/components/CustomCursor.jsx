@@ -7,7 +7,10 @@ const INTERACTIVE_SELECTOR = 'a, button, input, textarea, [role="button"]'
 // elementos interactivos. Solo se activa en dispositivos con mouse
 // (pointer: fine); en touch no se monta nada.
 export default function CustomCursor() {
-  const [enabled, setEnabled] = useState(false)
+  // Se calcula una sola vez, al montar, en vez de con setState dentro de un
+  // useEffect -- así el valor ya es correcto desde el primer render, sin
+  // necesitar un efecto solo para guardarlo.
+  const [enabled] = useState(() => window.matchMedia('(pointer: fine)').matches)
   const [isHovering, setIsHovering] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
 
@@ -17,9 +20,7 @@ export default function CustomCursor() {
   const ringY = useSpring(dotY, { stiffness: 300, damping: 30 })
 
   useEffect(() => {
-    const canHover = window.matchMedia('(pointer: fine)').matches
-    setEnabled(canHover)
-    if (!canHover) return
+    if (!enabled) return
 
     const handleMove = (event) => {
       dotX.set(event.clientX)
@@ -39,7 +40,7 @@ export default function CustomCursor() {
       window.removeEventListener('mouseover', handleOver)
       document.documentElement.removeEventListener('mouseleave', handleLeave)
     }
-  }, [dotX, dotY])
+  }, [dotX, dotY, enabled])
 
   if (!enabled) return null
 
