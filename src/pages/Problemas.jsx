@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import { motion, AnimatePresence } from 'framer-motion'
-import { MeshGradient } from '@paper-design/shaders-react'
 import FloatingSymbol from '../components/motion/FloatingSymbol'
 import Counter from '../components/motion/Counter'
 import { EASE, fadeUp, staggerContainer, popIn } from '../components/motion/variants'
@@ -13,29 +12,32 @@ import { EASE, fadeUp, staggerContainer, popIn } from '../components/motion/vari
 //
 //   1. Configuración: dirección de la API + helper apiFetch() para hablar
 //      con el backend (fetch + manejo de errores en un solo lugar).
-//   2. Constantes de filtros (AÑOS, TEMAS, TIPOS) + paleta Axioma reutilizada
-//      del Hero (rojo/naranja/dorado) para el rediseño visual.
-//   3. FilterGroup       -> la lista de opciones de un filtro, ahora como
-//                           "chips" de color en vez de checkboxes planos.
+//   2. Constantes de filtros (AÑOS, TEMAS, TIPOS) + paleta Axioma + la
+//      paleta "de material" nueva (madera/pergamino/bambú).
+//   3. FilterGroup       -> la lista de opciones de un filtro, como "chips"
+//                           de color en vez de checkboxes planos.
 //   4. AuthInlineForm    -> formulario de login/registro, se muestra dentro
 //                           del modal cuando nadie ha iniciado sesión.
 //   5. ComentarioItem    -> un comentario ya publicado.
 //   6. ProblemaModal     -> el modal de un problema: enunciado + comentarios,
-//                           ahora con animación de entrada/salida.
-//   7. ProblemaCard      -> una tarjeta de la cuadrícula de problemas (antes
-//                           era una fila de tabla).
+//                           con animación de entrada/salida.
+//   7. ScrollCard        -> el "cascarón" compartido de ProblemaCard y
+//                           FolderCard: un botón con look de rollo de
+//                           pergamino (barra de madera arriba y abajo).
 //   8. ForestBackground   -> el fondo animado de bosque verde (fixed,
-//                           detrás de todo), + FallingLeaf, la hoja que cae.
-//   9. Problemas         -> el componente principal: pide los problemas a la
-//                           API, aplica los filtros, dibuja la cuadrícula y
-//                           decide qué modal mostrar.
+//                           detrás de todo): copas en capas, panda(s),
+//                           rama, caminito de destellos, hojas cayendo.
+//   9. BambooBar          -> la vara de bambú arriba/abajo del sidebar.
+//  10. Problemas         -> el componente principal: pide los problemas a la
+//                           API, aplica los filtros, dibuja la cuadrícula/
+//                           carpetas y decide qué modal mostrar.
 //
 // Este archivo mantiene exactamente la misma lógica de datos que antes
 // (fetch, filtros, autenticación, comentarios) — el rediseño solo cambia
-// el JSX/CSS de cómo se ve cada pieza, inspirado en el foro de AoPS
-// (estructura de carpetas + hilo por problema, que ya teníamos) y en el
-// estilo visual de Hack the North (color, movimiento, tarjetas "ladeadas",
-// y ahora un fondo temático animado).
+// el JSX/CSS de cómo se ve cada pieza. La estructura (carpetas + hilo por
+// problema) sigue inspirada en el foro de AoPS; la temática visual —
+// bosque, letrero de madera, tarjetas como pergamino, panda rojo — sigue
+// el estilo colorido/animado de Hack the North y un boceto que hizo Elias.
 // ---------------------------------------------------------------------------
 
 // Dirección del backend. En desarrollo, Vite expone las variables que
@@ -55,6 +57,20 @@ const AXIOMA_ORANGE = '#E57505'
 const AXIOMA_GOLD = '#FFB401'
 const AXIOMA_DARK = '#120303'
 const AXIOMA_GRADIENT = `linear-gradient(135deg, ${AXIOMA_GOLD} 0%, ${AXIOMA_ORANGE} 45%, ${AXIOMA_RED} 100%)`
+
+// Paleta "de material" para el rediseño tipo mapa del tesoro: madera para
+// el letrero y el marco del sidebar, pergamino para las tarjetas (se ven
+// como rollos de papel viejo), bambú para las barras del sidebar. Ninguno
+// de estos reemplaza los AXIOMA_* de arriba — siguen siendo el color de
+// acento (hojas, botones, estampas); estos son solo la "superficie" sobre
+// la que se paran.
+const WOOD_LIGHT = '#7a4f2e'
+const WOOD_MID = '#5c3a22'
+const WOOD_DARK = '#3d2817'
+const PARCHMENT = '#f3e7c9'
+const PARCHMENT_SHADOW = '#e3d0a3'
+const BAMBOO = '#b89a5a'
+const BAMBOO_DARK = '#8a7040'
 
 // apiFetch centraliza las 3 cosas que se repetirían en cada llamada a la
 // API: mandar el body como JSON, agregar el token de sesión si existe, y
@@ -644,19 +660,12 @@ function ProblemaCard({ problema, tilt, onOpen }) {
   const dificultadBg = DIFICULTAD_BG[problema.dificultad]
 
   return (
-    <motion.button
-      type="button"
-      onClick={() => onOpen(problema)}
-      variants={popIn(tilt)}
-      whileHover={{ rotate: 0, y: -6, scale: 1.02 }}
-      whileTap={{ scale: 0.97 }}
-      className="group flex flex-col gap-3 rounded-2xl border border-brand-200 bg-[#FFFBF5] p-5 text-left shadow-md shadow-black/5 transition-shadow duration-200 hover:shadow-xl hover:shadow-brand-900/10"
-    >
+    <ScrollCard tilt={tilt} onClick={() => onOpen(problema)} className="flex flex-col gap-3 px-5 pb-8 pt-9">
       {/* codigo/tipo/año ya no van aquí como etiquetas sueltas: el título
           de abajo (formatearTitulo) ya dice competencia + año + número.
           Lo único que sigue haciendo falta a simple vista es el tema. */}
       <div className="flex items-start justify-between gap-3">
-        <span className="rounded-full bg-brand-100 px-2.5 py-1 text-[11px] font-medium text-brand-600">
+        <span className="rounded-full bg-black/5 px-2.5 py-1 text-[11px] font-medium text-brand-700">
           {problema.tema}
         </span>
         <span
@@ -670,7 +679,7 @@ function ProblemaCard({ problema, tilt, onOpen }) {
       <h3 className="text-base font-semibold text-brand-900 transition-colors group-hover:text-[#B70B0D]">
         {formatearTitulo(problema)}
       </h3>
-    </motion.button>
+    </ScrollCard>
   )
 }
 
@@ -694,28 +703,63 @@ function FolderIcon({ className, style }) {
   )
 }
 
+// El "cascarón" compartido entre FolderCard y ProblemaCard: los dos son
+// botones con el mismo look de "rollo de pergamino" (una barra de madera
+// enrollada arriba y otra abajo, cuerpo de pergamino en medio) — solo
+// cambia lo que llevan adentro. Sacar esto a su propio componente evita
+// repetir las mismas líneas de estilo dos veces.
+function ScrollCard({ tilt, onClick, className = '', children }) {
+  return (
+    <motion.button
+      type="button"
+      onClick={onClick}
+      variants={popIn(tilt)}
+      whileHover={{ rotate: 0, y: -6, scale: 1.02 }}
+      whileTap={{ scale: 0.97 }}
+      className={`group relative overflow-hidden rounded-md text-left shadow-md shadow-black/10 transition-shadow duration-200 hover:shadow-xl hover:shadow-black/20 ${className}`}
+      style={{
+        // Viñeta sutil: más oscuro en las esquinas que en el centro, como
+        // un papel viejo de verdad en vez de un color plano.
+        backgroundImage: `radial-gradient(ellipse at 50% 45%, ${PARCHMENT} 45%, ${PARCHMENT_SHADOW} 100%)`,
+      }}
+    >
+      {/* Las "barras enrolladas": solo un degradado de madera arriba y
+          abajo. El padding del contenido (pt-9/pb-8, ver los usos) deja
+          espacio de sobra para que nunca se encimen con el texto. */}
+      <span
+        aria-hidden="true"
+        className="absolute inset-x-0 top-0 h-4"
+        style={{ backgroundImage: `linear-gradient(180deg, ${WOOD_LIGHT}, ${WOOD_DARK})` }}
+      />
+      <span
+        aria-hidden="true"
+        className="absolute inset-x-0 bottom-0 h-4"
+        style={{ backgroundImage: `linear-gradient(180deg, ${WOOD_DARK}, ${WOOD_LIGHT})` }}
+      />
+      {children}
+    </motion.button>
+  )
+}
+
 // Una carpeta clickeable: nombre + cuántos problemas tiene adentro (contando
 // subcarpetas). Visualmente es a propósito MUY distinta de ProblemaCard
 // (ícono grande y centrado en vez de título+dificultad) para que se sienta
 // de inmediato como "esto te lleva más adentro", no "esto abre un problema".
 function FolderCard({ nodo, count, color, tilt, onOpen }) {
   return (
-    <motion.button
-      type="button"
+    <ScrollCard
+      tilt={tilt}
       onClick={() => onOpen(nodo._id)}
-      variants={popIn(tilt)}
-      whileHover={{ rotate: 0, y: -6, scale: 1.02 }}
-      whileTap={{ scale: 0.97 }}
-      className="group flex flex-col items-center gap-2 rounded-2xl border border-brand-200 bg-[#FFFBF5] px-5 py-8 text-center shadow-md shadow-black/5 transition-shadow duration-200 hover:shadow-xl hover:shadow-brand-900/10"
+      className="flex flex-col items-center gap-2 px-5 pb-8 pt-9 text-center"
     >
       <FolderIcon className="h-12 w-12 transition-transform group-hover:scale-110" style={{ color }} />
       <h3 className="text-lg font-semibold text-brand-900 transition-colors group-hover:text-[#B70B0D]">
         {nodo.name}
       </h3>
-      <span className="text-xs text-brand-500">
+      <span className="text-xs text-brand-600">
         {count} {count === 1 ? 'problema' : 'problemas'}
       </span>
-    </motion.button>
+    </ScrollCard>
   )
 }
 
@@ -921,11 +965,13 @@ const PANDA_DARK = AXIOMA_DARK
 // Respira despacio (sube/baja + se ladea un poco) y de vez en cuando
 // parpadea (los ojos son <motion.g> aparte, escalados en Y casi a 0 un
 // instante) — el tipo de detalle chiquito que hace que algo se sienta vivo
-// en vez de una imagen pegada.
-function RedPandaMascot({ className }) {
+// en vez de una imagen pegada. `delay` desfasa esa respiración/parpadeo
+// para cuando hay más de un panda en pantalla — si no, los dos "respiran"
+// exactamente igual y se nota que son copias.
+function RedPandaMascot({ className, delay = 0 }) {
   const parpadeo = {
     animate: { scaleY: [1, 1, 0.1, 1, 1] },
-    transition: { duration: 5, repeat: Infinity, ease: 'easeInOut', times: [0, 0.9, 0.94, 0.98, 1] },
+    transition: { duration: 5, repeat: Infinity, ease: 'easeInOut', times: [0, 0.9, 0.94, 0.98, 1], delay },
   }
   return (
     <motion.svg
@@ -933,7 +979,7 @@ function RedPandaMascot({ className }) {
       viewBox="0 0 100 100"
       className={className}
       animate={{ y: [0, -3, 0], rotate: [0, 1.5, 0, -1.5, 0] }}
-      transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
+      transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut', delay }}
     >
       {/* orejas, con una tuftita clara adentro */}
       <circle cx="27" cy="24" r="12" fill={AXIOMA_ORANGE} />
@@ -1032,6 +1078,61 @@ function ForestBackground() {
         ))}
       </div>
 
+      {/* Ramita bajo el panda principal, como si estuviera parado en
+          ella — un solo trazo curvo grueso, nada de ilustración de
+          verdad. Mismo criterio que el panda: oculta por debajo de `md`. */}
+      <svg
+        className="absolute inset-x-0 bottom-[8.5rem] hidden h-16 w-full md:block"
+        viewBox="0 0 400 60"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <path d="M0 42 Q100 8 200 26 T400 12" fill="none" stroke={FOREST_BARK} strokeWidth="14" strokeLinecap="round" />
+      </svg>
+
+      {/* Caminito de puntitos con destellos — el guiño "mapa del tesoro"
+          de la referencia. Cada destello parpadea solo (opacity en loop),
+          barato de animar porque no es blur ni layout, solo opacidad. */}
+      <svg
+        className="absolute inset-x-0 bottom-[2rem] hidden h-24 w-full opacity-80 lg:block"
+        viewBox="0 0 400 100"
+        preserveAspectRatio="none"
+        aria-hidden="true"
+      >
+        <path
+          d="M15 85 Q90 45 160 62 T300 32 T385 58"
+          fill="none"
+          stroke={PARCHMENT}
+          strokeWidth="3"
+          strokeDasharray="2 11"
+          strokeLinecap="round"
+        />
+      </svg>
+      {[
+        { left: '5%', bottom: '2.8rem', size: 14, delay: 0 },
+        { left: '38%', bottom: '4.2rem', size: 10, delay: 1.2 },
+        { left: '72%', bottom: '3.4rem', size: 16, delay: 2.4 },
+        { left: '92%', bottom: '5rem', size: 11, delay: 0.6 },
+      ].map((s, i) => (
+        <motion.svg
+          key={i}
+          viewBox="0 0 24 24"
+          className="absolute hidden text-white lg:block"
+          style={{ left: s.left, bottom: s.bottom, width: s.size, height: s.size }}
+          animate={{ opacity: [0.15, 0.9, 0.15], scale: [0.8, 1, 0.8] }}
+          transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut', delay: s.delay }}
+          aria-hidden="true"
+        >
+          <path d="M12 0 L14.5 9.5 L24 12 L14.5 14.5 L12 24 L9.5 14.5 L0 12 L9.5 9.5 Z" fill="currentColor" />
+        </motion.svg>
+      ))}
+
+      {/* Dos pandas chicos, asomados a los lados — el mismo que el
+          principal, a otra escala y con un delay distinto para que no
+          "respiren" los tres exactamente igual. */}
+      <RedPandaMascot delay={2.3} className="absolute bottom-[3rem] left-[6%] hidden drop-shadow-md md:block md:h-16 md:w-16 lg:h-20 lg:w-20" />
+      <RedPandaMascot delay={4.1} className="absolute bottom-[4rem] right-[8%] hidden h-14 w-14 drop-shadow-md lg:block" />
+
       {/* Oculto por debajo de `md`: ahí el sidebar de filtros (que
           también se activa en `md`, ver el grid y el aside más abajo)
           cae apilado justo debajo del encabezado en vez de al costado, y
@@ -1049,6 +1150,27 @@ function ForestBackground() {
 
       {LEAVES.map((hoja, i) => (
         <FallingLeaf key={i} {...hoja} />
+      ))}
+    </div>
+  )
+}
+
+// Una "vara" de bambú — se usa arriba y abajo del sidebar, como si el
+// panel de filtros fuera un pergamino enrollado en dos varas (mismo
+// espíritu que ScrollCard, con bambú en vez de madera lisa). Las rayitas
+// oscuras son las uniones entre segmentos de una caña de bambú de verdad.
+function BambooBar({ redondeo }) {
+  return (
+    <div
+      className={`relative h-5 w-full shrink-0 shadow-sm ${redondeo}`}
+      style={{ backgroundImage: `linear-gradient(180deg, ${BAMBOO}, ${BAMBOO_DARK})` }}
+    >
+      {[12, 34, 56, 78].map((left) => (
+        <div
+          key={left}
+          className="absolute top-1/2 h-3.5 w-[3px] -translate-y-1/2 rounded-full bg-black/20"
+          style={{ left: `${left}%` }}
+        />
       ))}
     </div>
   )
@@ -1221,26 +1343,28 @@ export default function Problemas() {
     <section className="mx-auto max-w-6xl px-4 py-24 sm:px-6">
       <ForestBackground />
 
-      {/* Encabezado: mismo fondo shader animado que el Hero (MeshGradient +
-          símbolos flotantes), a menor escala — así la página de Problemas
-          se siente parte del mismo sitio en vez de una página aparte. */}
+      {/* Encabezado: ya no es la caja oscura con shader — ahora es un
+          letrero de madera, como si colgara de la rama que se ve en
+          ForestBackground. La textura es puro CSS (gradientes, nada de
+          shader ni blur por elemento) siguiendo la misma lección de
+          rendimiento del fondo: efectos baratos, no uno por elemento. */}
       <motion.div
         initial="hidden"
         animate="show"
         variants={fadeUp}
-        className="relative mb-12 overflow-hidden rounded-3xl px-6 py-10 text-center shadow-2xl shadow-black/20 sm:px-10"
-        style={{ backgroundColor: AXIOMA_DARK }}
+        className="relative mb-12 overflow-hidden rounded-2xl px-6 py-10 text-center shadow-2xl shadow-black/40 sm:px-10"
+        style={{
+          backgroundImage: `radial-gradient(ellipse 100% 60% at 50% 0%, rgba(255,255,255,0.12), transparent 70%), repeating-linear-gradient(90deg, rgba(0,0,0,0.14) 0px, rgba(0,0,0,0.14) 2px, transparent 2px, transparent 64px), linear-gradient(180deg, ${WOOD_LIGHT} 0%, ${WOOD_MID} 55%, ${WOOD_DARK} 100%)`,
+        }}
       >
-        <div className="pointer-events-none absolute inset-0">
-          <MeshGradient
-            className="absolute inset-0 h-full w-full"
-            colors={[AXIOMA_RED, AXIOMA_ORANGE, AXIOMA_GOLD, AXIOMA_DARK]}
-            speed={0.25}
-            distortion={0.7}
-            swirl={0.25}
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-[#120303]/70 via-[#120303]/40 to-[#120303]/85" />
-        </div>
+        {/* Cuerdas: dos lazos simples arriba, como si el letrero colgara
+            de algo por encima (la rama del fondo). */}
+        <svg className="pointer-events-none absolute -top-4 left-10 h-9 w-7" viewBox="0 0 24 32" aria-hidden="true">
+          <path d="M6 32V12c0-5.5 4.5-10 10-10" fill="none" stroke={WOOD_DARK} strokeWidth="3" strokeLinecap="round" />
+        </svg>
+        <svg className="pointer-events-none absolute -top-4 right-10 h-9 w-7 scale-x-[-1]" viewBox="0 0 24 32" aria-hidden="true">
+          <path d="M6 32V12c0-5.5 4.5-10 10-10" fill="none" stroke={WOOD_DARK} strokeWidth="3" strokeLinecap="round" />
+        </svg>
 
         <FloatingSymbol symbol="∑" className="pointer-events-none absolute left-[8%] top-[18%] text-3xl text-[#FFB401]/40 sm:text-4xl" delay={0} duration={7} rotate={-6} />
         <FloatingSymbol symbol="π" className="pointer-events-none absolute right-[10%] top-[22%] text-3xl text-[#E57505]/40 sm:text-4xl" delay={0.5} duration={6} rotate={6} />
@@ -1285,50 +1409,60 @@ export default function Problemas() {
 
       <div className="grid grid-cols-1 gap-8 md:grid-cols-[240px_1fr]">
         {/* Sidebar de filtros — misma estructura y lógica de siempre
-            (Año / Tema / Tipo / Carpetas), solo con look nuevo. Se queda
-            fija (sticky) al hacer scroll por la cuadrícula de problemas.
+            (Año / Tema / Tipo / Carpetas), ahora como un pergamino
+            enrollado entre dos varas de bambú. Se queda fija (sticky) al
+            hacer scroll por la cuadrícula de problemas.
 
-            md:max-h-[...] + md:overflow-y-auto: sin esto, un sticky más
-            alto que la pantalla (Año + Tema + Tipo + Carpetas junto pueden
-            medir más que el alto visible) queda "pegado" en top-28 sin
-            forma de ver su parte de abajo — hasta que el scroll de toda la
-            página llega al FINAL de la cuadrícula de problemas y recién
-            ahí el sidebar se "despega" y se mueve. Dándole su propio alto
-            máximo + scroll interno, el sidebar se desplaza solo, sin
-            depender de qué tan abajo estés en los problemas. */}
+            Por qué son 3 piezas (bambú / contenido / bambú) en vez de un
+            solo panel: el marco de bambú necesita quedarse QUIETO como
+            marco, mientras que el contenido (que puede medir más que la
+            pantalla — Año + Tema + Tipo + Carpetas juntos) necesita su
+            propio scroll interno. Metiendo el md:overflow-y-auto en el
+            <aside> completo, el bambú de abajo se hubiera ido con el
+            scroll y solo se vería al llegar al final de la lista — el
+            mismo problema que ya resolvimos una vez, ver el commit
+            anterior. Separando el bambú del contenido, el marco se queda
+            fijo y solo lo de adentro se desplaza. */}
         <motion.aside
           initial="hidden"
           animate="show"
           variants={fadeUp}
-          className="flex flex-col gap-6 self-start rounded-2xl border border-white/60 bg-[#FFFBF5]/90 p-5 shadow-lg shadow-black/5 backdrop-blur-md md:sticky md:top-28 md:max-h-[calc(100vh-9rem)] md:overflow-y-auto"
+          className="self-start shadow-lg shadow-black/20 md:sticky md:top-28"
         >
-          <div className="flex items-center gap-2 border-b border-brand-200 pb-3">
-            <span className="font-serif text-lg italic text-[#E57505]">∫</span>
-            <h2 className="text-sm font-bold uppercase tracking-wide text-brand-900">Explorar</h2>
+          <BambooBar redondeo="rounded-t-lg" />
+          <div
+            className="flex flex-col gap-6 px-5 py-4 md:max-h-[calc(100vh-10.5rem)] md:overflow-y-auto"
+            style={{ backgroundColor: PARCHMENT }}
+          >
+            <div className="flex items-center gap-2 border-b border-black/10 pb-3">
+              <span className="font-serif text-lg italic text-[#B70B0D]">∫</span>
+              <h2 className="text-sm font-bold uppercase tracking-wide text-brand-900">Explorar</h2>
+            </div>
+            <FilterGroup
+              title="Año"
+              options={AÑOS}
+              selected={años}
+              onToggle={toggle(setAños)}
+            />
+            <FilterGroup
+              title="Tema"
+              options={TEMAS}
+              selected={temas}
+              onToggle={toggle(setTemas)}
+            />
+            <FilterGroup
+              title="Tipo de concurso"
+              options={TIPOS}
+              selected={tipos}
+              onToggle={toggle(setTipos)}
+            />
+            <CategoryFilter
+              raices={arbolCategorias}
+              seleccionadas={categoriasSeleccionadas}
+              onToggle={toggle(setCategoriasSeleccionadas)}
+            />
           </div>
-          <FilterGroup
-            title="Año"
-            options={AÑOS}
-            selected={años}
-            onToggle={toggle(setAños)}
-          />
-          <FilterGroup
-            title="Tema"
-            options={TEMAS}
-            selected={temas}
-            onToggle={toggle(setTemas)}
-          />
-          <FilterGroup
-            title="Tipo de concurso"
-            options={TIPOS}
-            selected={tipos}
-            onToggle={toggle(setTipos)}
-          />
-          <CategoryFilter
-            raices={arbolCategorias}
-            seleccionadas={categoriasSeleccionadas}
-            onToggle={toggle(setCategoriasSeleccionadas)}
-          />
+          <BambooBar redondeo="rounded-b-lg" />
         </motion.aside>
 
         {/* Área principal: cuadrícula de tarjetas si hay un filtro activo,
