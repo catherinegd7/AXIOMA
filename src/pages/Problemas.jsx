@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import { motion, AnimatePresence } from 'framer-motion'
+import { MeshGradient } from '@paper-design/shaders-react'
 import FloatingSymbol from '../components/motion/FloatingSymbol'
 import Counter from '../components/motion/Counter'
 import { EASE, fadeUp, staggerContainer, popIn } from '../components/motion/variants'
@@ -12,32 +13,29 @@ import { EASE, fadeUp, staggerContainer, popIn } from '../components/motion/vari
 //
 //   1. Configuración: dirección de la API + helper apiFetch() para hablar
 //      con el backend (fetch + manejo de errores en un solo lugar).
-//   2. Constantes de filtros (AÑOS, TEMAS, TIPOS) + paleta Axioma + la
-//      paleta "de material" nueva (madera/pergamino/bambú).
-//   3. FilterGroup       -> la lista de opciones de un filtro, como "chips"
-//                           de color en vez de checkboxes planos.
+//   2. Constantes de filtros (AÑOS, TEMAS, TIPOS) + paleta Axioma reutilizada
+//      del Hero (rojo/naranja/dorado) para el rediseño visual.
+//   3. FilterGroup       -> la lista de opciones de un filtro, ahora como
+//                           "chips" de color en vez de checkboxes planos.
 //   4. AuthInlineForm    -> formulario de login/registro, se muestra dentro
 //                           del modal cuando nadie ha iniciado sesión.
 //   5. ComentarioItem    -> un comentario ya publicado.
 //   6. ProblemaModal     -> el modal de un problema: enunciado + comentarios,
-//                           con animación de entrada/salida.
-//   7. ScrollCard        -> el "cascarón" compartido de ProblemaCard y
-//                           FolderCard: un botón con look de rollo de
-//                           pergamino (barra de madera arriba y abajo).
-//   8. ForestBackground   -> el fondo animado de bosque verde (fixed,
-//                           detrás de todo): copas en capas, panda(s),
-//                           rama, caminito de destellos, hojas cayendo.
-//   9. BambooBar          -> la vara de bambú arriba/abajo del sidebar.
-//  10. Problemas         -> el componente principal: pide los problemas a la
-//                           API, aplica los filtros, dibuja la cuadrícula/
-//                           carpetas y decide qué modal mostrar.
+//                           ahora con animación de entrada/salida.
+//   7. ProblemaCard      -> una tarjeta de la cuadrícula de problemas (antes
+//                           era una fila de tabla).
+//   8. AutumnBackground  -> el fondo animado de "bosque de otoño" (fixed,
+//                           detrás de todo), + FallingLeaf, la hoja que cae.
+//   9. Problemas         -> el componente principal: pide los problemas a la
+//                           API, aplica los filtros, dibuja la cuadrícula y
+//                           decide qué modal mostrar.
 //
 // Este archivo mantiene exactamente la misma lógica de datos que antes
 // (fetch, filtros, autenticación, comentarios) — el rediseño solo cambia
-// el JSX/CSS de cómo se ve cada pieza. La estructura (carpetas + hilo por
-// problema) sigue inspirada en el foro de AoPS; la temática visual —
-// bosque, letrero de madera, tarjetas como pergamino, panda rojo — sigue
-// el estilo colorido/animado de Hack the North y un boceto que hizo Elias.
+// el JSX/CSS de cómo se ve cada pieza, inspirado en el foro de AoPS
+// (estructura de carpetas + hilo por problema, que ya teníamos) y en el
+// estilo visual de Hack the North (color, movimiento, tarjetas "ladeadas",
+// y ahora un fondo temático animado).
 // ---------------------------------------------------------------------------
 
 // Dirección del backend. En desarrollo, Vite expone las variables que
@@ -55,21 +53,8 @@ const AUTH_STORAGE_KEY = 'axioma_auth'
 const AXIOMA_RED = '#B70B0D'
 const AXIOMA_ORANGE = '#E57505'
 const AXIOMA_GOLD = '#FFB401'
+const AXIOMA_DARK = '#120303'
 const AXIOMA_GRADIENT = `linear-gradient(135deg, ${AXIOMA_GOLD} 0%, ${AXIOMA_ORANGE} 45%, ${AXIOMA_RED} 100%)`
-
-// Paleta "de material" para el rediseño tipo mapa del tesoro: madera para
-// el letrero y el marco del sidebar, pergamino para las tarjetas (se ven
-// como rollos de papel viejo), bambú para las barras del sidebar. Ninguno
-// de estos reemplaza los AXIOMA_* de arriba — siguen siendo el color de
-// acento (hojas, botones, estampas); estos son solo la "superficie" sobre
-// la que se paran.
-const WOOD_LIGHT = '#7a4f2e'
-const WOOD_MID = '#5c3a22'
-const WOOD_DARK = '#3d2817'
-const PARCHMENT = '#f3e7c9'
-const PARCHMENT_SHADOW = '#e3d0a3'
-const BAMBOO = '#b89a5a'
-const BAMBOO_DARK = '#8a7040'
 
 // apiFetch centraliza las 3 cosas que se repetirían en cada llamada a la
 // API: mandar el body como JSON, agregar el token de sesión si existe, y
@@ -208,14 +193,6 @@ const DIFICULTAD_BG = {
 // está cada carpeta, sin depender solo de la indentación.
 const CATEGORY_ACCENTS = [AXIOMA_RED, AXIOMA_ORANGE, AXIOMA_GOLD]
 
-// Ángulos para que las tarjetas/carpetas NO queden perfectamente
-// alineadas — como mapas y recortes de papel tirados sobre una mesa, no
-// una cuadrícula prolija. Antes estaban todas en 0° ("paralelas"); ahora
-// cada una usa uno de estos valores según su posición en la lista
-// (`TILT_VALUES[i % TILT_VALUES.length]`), fijo por índice — mismo
-// resultado cada vez que carga la página, no aleatorio de verdad.
-const TILT_VALUES = [-2, 3, -1.5, 2.5, -3, 1.5]
-
 // El título que se muestra en pantalla: competencia + año + número de
 // problema (ej. "Putnam 2025 — Problema B6"), en vez de la frase
 // descriptiva que trae la base de datos en `problema.titulo`. No hace
@@ -246,26 +223,13 @@ function FilterGroup({ title, options, selected, onToggle }) {
                 onChange={() => onToggle(option)}
                 className="peer sr-only"
               />
-              {/* Tonos térreos (café/amarillo cálido/verde suave) en vez
-                  del gradiente rojo-naranja-dorado de marca — pedido
-                  explícito para estas pastillas específicamente, para que
-                  el sidebar se sienta parchment/bosque de verdad.
-                  Los hex están escritos literales (no interpolados desde
-                  WOOD_LIGHT/etc.) a propósito: Tailwind arma su CSS
-                  ESCANEANDO el código fuente en busca del patrón exacto
-                  `border-[#...]`, no ejecutando JavaScript — una clase con
-                  un ${'${...}'} adentro de los corchetes no genera nada. */}
               <span
                 className={`inline-block select-none rounded-full border px-3 py-1 text-xs font-medium transition-all duration-200 active:scale-95 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-900 peer-focus-visible:ring-offset-1 ${
                   activo
                     ? 'border-transparent text-white shadow-md'
-                    : 'border-[#7a4f2e]/40 bg-white/70 text-brand-700 hover:border-[#5c3a22] hover:text-[#5c3a22]'
+                    : 'border-brand-300 bg-white text-brand-600 hover:border-[#E57505] hover:text-[#E57505]'
                 }`}
-                style={
-                  activo
-                    ? { backgroundImage: `linear-gradient(135deg, ${BAMBOO} 0%, ${WOOD_MID} 55%, ${FOREST_MID} 100%)` }
-                    : undefined
-                }
+                style={activo ? { backgroundImage: AXIOMA_GRADIENT } : undefined}
               >
                 {option}
               </span>
@@ -670,22 +634,28 @@ function ProblemaModal({ problema, onClose, auth, onAuthSuccess, onAuthExpired }
 }
 
 // Una tarjeta de la cuadrícula de problemas — reemplaza la fila de tabla
-// que había antes. `tilt` es un ángulo (en grados) para la animación de
-// entrada (popIn) — hoy siempre se llama con 0 (tarjetas paralelas entre
-// sí, alineadas prolijamente), pero queda como parámetro por si algún día
-// se quiere volver a ladear alguna. Al pasar el mouse se levanta un poco
-// (whileHover), inspirado en las tarjetas de hackthenorth.com.
+// que había antes. `tilt` es un pequeño ángulo (en grados) que la deja
+// "ladeada" como una nota pegada en un pizarrón; al pasar el mouse se
+// endereza y se levanta un poco (whileHover), inspirado en las tarjetas de
+// hackthenorth.com.
 function ProblemaCard({ problema, tilt, onOpen }) {
   const dificultadClass = DIFICULTAD_STYLES[problema.dificultad]
   const dificultadBg = DIFICULTAD_BG[problema.dificultad]
 
   return (
-    <ScrollCard tilt={tilt} onClick={() => onOpen(problema)} className="flex flex-col gap-3 px-5 pb-8 pt-9">
+    <motion.button
+      type="button"
+      onClick={() => onOpen(problema)}
+      variants={popIn(tilt)}
+      whileHover={{ rotate: 0, y: -6, scale: 1.02 }}
+      whileTap={{ scale: 0.97 }}
+      className="group flex flex-col gap-3 rounded-2xl border border-brand-200 bg-[#FFFBF5] p-5 text-left shadow-md shadow-black/5 transition-shadow duration-200 hover:shadow-xl hover:shadow-brand-900/10"
+    >
       {/* codigo/tipo/año ya no van aquí como etiquetas sueltas: el título
           de abajo (formatearTitulo) ya dice competencia + año + número.
           Lo único que sigue haciendo falta a simple vista es el tema. */}
       <div className="flex items-start justify-between gap-3">
-        <span className="rounded-full bg-black/5 px-2.5 py-1 text-[11px] font-medium text-brand-700">
+        <span className="rounded-full bg-brand-100 px-2.5 py-1 text-[11px] font-medium text-brand-600">
           {problema.tema}
         </span>
         <span
@@ -696,10 +666,10 @@ function ProblemaCard({ problema, tilt, onOpen }) {
         </span>
       </div>
 
-      <h3 className="font-display text-base font-semibold text-brand-900 transition-colors group-hover:text-[#B70B0D]">
+      <h3 className="text-base font-semibold text-brand-900 transition-colors group-hover:text-[#B70B0D]">
         {formatearTitulo(problema)}
       </h3>
-    </ScrollCard>
+    </motion.button>
   )
 }
 
@@ -713,41 +683,13 @@ function ProblemaCard({ problema, tilt, onOpen }) {
 // como carpetas para navegar en vez de casillas para filtrar.
 // ---------------------------------------------------------------------------
 
-// El "cascarón" compartido entre FolderCard y ProblemaCard: los dos son
-// botones con el mismo look de "rollo de pergamino" (una barra de madera
-// enrollada arriba y otra abajo, cuerpo de pergamino en medio) — solo
-// cambia lo que llevan adentro. Sacar esto a su propio componente evita
-// repetir las mismas líneas de estilo dos veces.
-function ScrollCard({ tilt, onClick, className = '', children }) {
+// Ícono de carpeta dibujado a mano en SVG (nada de emoji) — un rectángulo
+// con una pestaña arriba a la izquierda, el dibujo clásico de "carpeta".
+function FolderIcon({ className, style }) {
   return (
-    <motion.button
-      type="button"
-      onClick={onClick}
-      variants={popIn(tilt)}
-      whileHover={{ rotate: 0, y: -6, scale: 1.02 }}
-      whileTap={{ scale: 0.97 }}
-      className={`group relative overflow-hidden rounded-md text-left shadow-md shadow-black/10 transition-shadow duration-200 hover:shadow-xl hover:shadow-black/20 ${className}`}
-      style={{
-        // Viñeta sutil: más oscuro en las esquinas que en el centro, como
-        // un papel viejo de verdad en vez de un color plano.
-        backgroundImage: `radial-gradient(ellipse at 50% 45%, ${PARCHMENT} 45%, ${PARCHMENT_SHADOW} 100%)`,
-      }}
-    >
-      {/* Las "barras enrolladas": solo un degradado de madera arriba y
-          abajo. El padding del contenido (pt-9/pb-8, ver los usos) deja
-          espacio de sobra para que nunca se encimen con el texto. */}
-      <span
-        aria-hidden="true"
-        className="absolute inset-x-0 top-0 h-4"
-        style={{ backgroundImage: `linear-gradient(180deg, ${WOOD_LIGHT}, ${WOOD_DARK})` }}
-      />
-      <span
-        aria-hidden="true"
-        className="absolute inset-x-0 bottom-0 h-4"
-        style={{ backgroundImage: `linear-gradient(180deg, ${WOOD_DARK}, ${WOOD_LIGHT})` }}
-      />
-      {children}
-    </motion.button>
+    <svg viewBox="0 0 24 24" className={className} style={style} fill="currentColor" aria-hidden="true">
+      <path d="M3 6.5C3 5.67 3.67 5 4.5 5H9.5l2 2H19.5c.83 0 1.5.67 1.5 1.5v9c0 .83-.67 1.5-1.5 1.5h-15C3.67 19 3 18.33 3 17.5v-11z" />
+    </svg>
   )
 }
 
@@ -757,30 +699,22 @@ function ScrollCard({ tilt, onClick, className = '', children }) {
 // de inmediato como "esto te lleva más adentro", no "esto abre un problema".
 function FolderCard({ nodo, count, color, tilt, onOpen }) {
   return (
-    <ScrollCard
-      tilt={tilt}
+    <motion.button
+      type="button"
       onClick={() => onOpen(nodo._id)}
-      className="flex flex-col items-center gap-2 px-5 pb-8 pt-9 text-center"
+      variants={popIn(tilt)}
+      whileHover={{ rotate: 0, y: -6, scale: 1.02 }}
+      whileTap={{ scale: 0.97 }}
+      className="group flex flex-col items-center gap-2 rounded-2xl border border-brand-200 bg-[#FFFBF5] px-5 py-8 text-center shadow-md shadow-black/5 transition-shadow duration-200 hover:shadow-xl hover:shadow-brand-900/10"
     >
-      {/* Ícono de carpeta rústico — antes era un SVG genérico de
-          "carpeta de oficina"; esto ahora es un placeholder para el
-          dibujo hecho a mano de la referencia. `tint` colorea el fondo
-          circular con el mismo acento (rojo/naranja/dorado) que ya usaba
-          el ícono plano, así que las 3 carpetas se siguen distinguiendo
-          por color aunque el PNG real todavía no exista. */}
-      <PlaceholderImg
-        src="/assets/problemas/folder-icon.png"
-        alt=""
-        tint={color}
-        className="h-14 w-14 rounded-full transition-transform group-hover:scale-110"
-      />
-      <h3 className="font-display text-lg font-semibold text-brand-900 transition-colors group-hover:text-[#B70B0D]">
+      <FolderIcon className="h-12 w-12 transition-transform group-hover:scale-110" style={{ color }} />
+      <h3 className="text-lg font-semibold text-brand-900 transition-colors group-hover:text-[#B70B0D]">
         {nodo.name}
       </h3>
-      <span className="text-xs text-brand-600">
+      <span className="text-xs text-brand-500">
         {count} {count === 1 ? 'problema' : 'problemas'}
       </span>
-    </ScrollCard>
+    </motion.button>
   )
 }
 
@@ -814,40 +748,38 @@ function Breadcrumb({ ruta, onNavigate }) {
 }
 
 // ---------------------------------------------------------------------------
-// Fondo: textura de bosque + hojas cayendo, separadas en DOS piezas.
+// Fondo dinámico: paisaje de otoño (referencia visual: hackthenorth.com).
+// Es `fixed` (ligado a la VENTANA, no a la página completa) — por eso no
+// hace falta cubrir todo el alto del contenido: al hacer scroll se queda
+// quieto detrás, como un telón de fondo real, en vez de tener que ser tan
+// alto como los 93 problemas de la cuadrícula.
 //
-// La versión anterior tenía un solo `fixed` con árboles pintados a mano
-// en SVG/CSS. Dos problemas que Elias marcó: (1) "el fondo se desvanece"
-// — como era `fixed` (ligado a la VENTANA), en una lista larga (93
-// problemas es mucho scroll) solo se veía bosque rico cerca de arriba; el
-// resto del scroll mostraba siempre el mismo degradado apagándose hacia
-// crema, una y otra vez. (2) los pandas dibujados con círculos/óvalos no
-// se parecían al boceto pintado que compartió.
+// Usa SOLO tonos de la paleta Axioma (rojo/naranja/dorado + un café oscuro
+// para dar profundidad) — nada de verde: así las "hojas" leen como otoño Y
+// la página se mantiene naranja, tal como se pidió.
 //
-// Esta versión resuelve ambas cosas distinto:
-//   - ForestBackground (fondo, `absolute` no `fixed`): ahora mide el alto
-//     de TODA la sección en vez de solo la ventana — crece con el
-//     contenido, así que hay bosque en cualquier punto del scroll, no
-//     solo al principio. La textura de árboles es un `background-image`
-//     en mosaico (se repite), no formas dibujadas a mano: un mosaico no
-//     necesita saber qué tan alta es la página.
-//   - FallingLeaves (hojas, sigue en `fixed`): a las hojas SÍ les
-//     conviene seguir ligadas a la ventana — es un efecto ambiente barato
-//     que se ve "fresco" sin importar cuánto hayas bajado.
-//   - Las ilustraciones (panda, rama, props) ya NO son SVG a mano — son
-//     <img> con rutas a /assets/problemas/..., listas para que Elias
-//     ponga el arte real ahí (ver PlaceholderImg más abajo y
-//     SceneDecorations, junto a Problemas()).
+// z-index: -z-10 (negativo) manda todo este bloque DETRÁS de cualquier
+// contenido normal de la página sin tener que tocarle el z-index a nada
+// más — así no hace falta cambiar cómo está armado el resto del archivo.
+// pointer-events-none evita que, al cubrir toda la ventana, bloquee clicks
+// en lo que sea que esté "encima".
 // ---------------------------------------------------------------------------
-const FOREST_MID = '#2f6b3a'
-const FOREST_DEEP = '#1c4227'
-const FOREST_DEEPEST = '#0d2114'
+const AUTUMN_BROWN = '#4a1508'
+const AUTUMN_BROWN_LIGHT = '#7a2e12'
 
-// Café/rojizo oscuro que sigue haciendo falta para una de las tonalidades
-// de las hojas que caen.
-const RUSTY_BROWN = '#7a2e12'
+// Manchas borrosas y redondeadas que, apiladas cerca del piso de la
+// ventana, leen como una línea de copas de árboles vista de lejos.
+const TREE_BLOBS = [
+  { left: '-5%', bottom: '-6rem', size: 260, color: AUTUMN_BROWN, opacity: 0.55 },
+  { left: '10%', bottom: '-8rem', size: 320, color: AXIOMA_RED, opacity: 0.45 },
+  { left: '28%', bottom: '-5rem', size: 240, color: AUTUMN_BROWN_LIGHT, opacity: 0.5 },
+  { left: '45%', bottom: '-7rem', size: 300, color: AXIOMA_ORANGE, opacity: 0.4 },
+  { left: '63%', bottom: '-6rem', size: 260, color: AUTUMN_BROWN, opacity: 0.5 },
+  { left: '80%', bottom: '-8rem', size: 320, color: AXIOMA_RED, opacity: 0.45 },
+  { left: '95%', bottom: '-5rem', size: 240, color: AUTUMN_BROWN_LIGHT, opacity: 0.5 },
+]
 
-const LEAF_COLORS = [AXIOMA_RED, AXIOMA_ORANGE, AXIOMA_GOLD, RUSTY_BROWN]
+const LEAF_COLORS = [AXIOMA_RED, AXIOMA_ORANGE, AXIOMA_GOLD, AUTUMN_BROWN_LIGHT]
 const LEAVES = [
   { left: '4%', delay: 0, duration: 13, size: 18, drift: 40 },
   { left: '14%', delay: 3, duration: 16, size: 14, drift: 30 },
@@ -896,242 +828,56 @@ function FallingLeaf({ left, delay, duration, size, color, drift }) {
   )
 }
 
-// Hojas cayendo, en su propia capa `fixed` — ver la nota grande de arriba
-// de por qué esto vive separado de ForestBackground.
-function FallingLeaves() {
+function AutumnBackground() {
   return (
     <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden="true">
+      {/* Cielo: crema arriba -> rojo profundo abajo, todo dentro de la
+          paleta de marca de siempre (ver AXIOMA_* arriba) */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background: `linear-gradient(180deg, #FFF3E2 0%, #FDD9A0 20%, ${AXIOMA_GOLD} 40%, ${AXIOMA_ORANGE} 58%, ${AXIOMA_RED} 76%, ${AUTUMN_BROWN} 100%)`,
+        }}
+      />
+
+      {/* "Sol" de otoño: un brillo que respira despacio (escala + opacidad
+          en loop) — la parte "dinámica" del cielo, no es una imagen fija */}
+      <motion.div
+        className="absolute -top-40 left-1/2 h-[34rem] w-[34rem] -translate-x-1/2 rounded-full blur-3xl"
+        style={{ background: 'radial-gradient(circle, #FFF3E2cc 0%, transparent 70%)' }}
+        animate={{ opacity: [0.6, 0.9, 0.6], scale: [1, 1.06, 1] }}
+        transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
+      />
+
+      {/* Copas de árboles: manchas redondeadas y borrosas formando una
+          línea de bosque cerca del piso de la ventana */}
+      <div className="absolute inset-x-0 bottom-0 h-[60%]">
+        {TREE_BLOBS.map((b, i) => (
+          <div
+            key={i}
+            className="absolute rounded-[46%] blur-md"
+            style={{
+              left: b.left,
+              bottom: b.bottom,
+              width: b.size,
+              height: b.size * 0.75,
+              backgroundColor: b.color,
+              opacity: b.opacity,
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Se funde con el crema del contenido: para cuando la vista llega a
+          la cuadrícula de problemas, el fondo ya no compite con el texto */}
+      <div
+        className="absolute inset-x-0 bottom-0 h-[50%]"
+        style={{ background: 'linear-gradient(180deg, transparent 0%, #FAF3EA 100%)' }}
+      />
+
       {LEAVES.map((hoja, i) => (
         <FallingLeaf key={i} {...hoja} />
       ))}
-    </div>
-  )
-}
-
-// Una <img> con un relleno de color de respaldo: mientras no exista el
-// archivo real en /assets/problemas/, el navegador mostraría el ícono feo
-// de "imagen rota" — con onError lo escondemos y queda solo un bloque
-// suave del color indicado (`tint`), que se siente a propósito en vez de
-// roto. Cuando el PNG de verdad exista (la mayoría van a tener fondo
-// transparente), se dibuja encima y el color de respaldo queda como una
-// especie de resplandor detrás del personaje/objeto.
-function PlaceholderImg({ src, alt = '', tint = AXIOMA_ORANGE, className = '', imgClassName = '' }) {
-  const [rota, setRota] = useState(false)
-  return (
-    <div className={`overflow-hidden rounded-2xl ${className}`} style={{ backgroundColor: `${tint}26` }}>
-      {!rota && (
-        <img
-          src={src}
-          alt={alt}
-          onError={() => setRota(true)}
-          className={`h-full w-full object-contain ${imgClassName}`}
-        />
-      )}
-    </div>
-  )
-}
-
-// La mascota: un panda rojo. Antes era círculos y óvalos de SVG dibujados
-// a mano — Elias marcó que "se ven raros" comparados con el boceto
-// pintado que compartió, y calcar una ilustración de verdad con formas
-// geométricas simples tiene un techo bajo. Esto ahora es un <img>
-// placeholder: hay que generar el arte real (mismo estilo que el boceto)
-// y guardarlo en la ruta que indica `src` — ver SceneDecorations más
-// abajo para qué rutas/poses hacen falta. `delay` desfasa el balanceo
-// suave para que, si hay más de un panda en pantalla, no se muevan en
-// sincronía perfecta.
-function RedPandaMascot({ src, alt = 'Panda rojo', tint, className, delay = 0 }) {
-  return (
-    <motion.div
-      className={className}
-      animate={{ y: [0, -5, 0], rotate: [0, 1.5, 0, -1.5, 0] }}
-      transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut', delay }}
-    >
-      <PlaceholderImg src={src} alt={alt} tint={tint} className="h-full w-full" />
-    </motion.div>
-  )
-}
-
-function ForestBackground() {
-  return (
-    <div className="pointer-events-none absolute inset-0 -z-10 isolate overflow-hidden" aria-hidden="true">
-      {/* Lavado de color: verde pálido arriba -> verde bosque profundo
-          abajo. Al ser `absolute` (no `fixed`), este degradado se estira
-          sobre TODO el alto de la sección — en una lista corta (la vista
-          de carpetas) solo se alcanza a ver la parte pálida de arriba; en
-          una lista larga (93 problemas filtrados) se recorre más lento,
-          pero SIEMPRE es bosque, nunca se "apaga" hacia crema plana. */}
-      <div
-        className="absolute inset-0"
-        style={{
-          backgroundImage: `linear-gradient(180deg, #eef5e6 0%, ${FOREST_MID} 55%, ${FOREST_DEEP} 85%, ${FOREST_DEEPEST} 100%)`,
-        }}
-      />
-
-      {/* Textura de árboles/hojas/enredaderas en mosaico — reemplacen
-          esta ruta por una textura sin costura que se repita bien. Un
-          mosaico (background-repeat) en vez de <img>: no tiene "un
-          tamaño", cubre cualquier alto de página sin necesitar una
-          imagen gigante ni saber de antemano qué tan larga es. */}
-      <div
-        className="absolute inset-0"
-        style={{
-          backgroundImage: 'url(/assets/problemas/forest-pattern.png)',
-          backgroundRepeat: 'repeat',
-          backgroundSize: '440px auto',
-        }}
-      />
-
-      {/* Sol filtrándose entre las hojas, cerca de arriba nada más — un
-          brillo dorado que respira despacio. */}
-      <motion.div
-        className="absolute -top-40 left-1/2 h-[34rem] w-[34rem] -translate-x-1/2 rounded-full blur-3xl"
-        style={{ background: `radial-gradient(circle, ${AXIOMA_GOLD}55 0%, transparent 70%)` }}
-        animate={{ opacity: [0.5, 0.85, 0.5], scale: [1, 1.07, 1] }}
-        transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
-      />
-    </div>
-  )
-}
-
-// Una "vara" de bambú — se usa arriba y abajo del sidebar, como si el
-// panel de filtros fuera un pergamino enrollado en dos varas (mismo
-// espíritu que ScrollCard, con bambú en vez de madera lisa). Las rayitas
-// oscuras son las uniones entre segmentos de una caña de bambú de verdad.
-function BambooBar({ redondeo }) {
-  return (
-    <div
-      className={`relative h-5 w-full shrink-0 shadow-sm ${redondeo}`}
-      style={{ backgroundImage: `linear-gradient(180deg, ${BAMBOO}, ${BAMBOO_DARK})` }}
-    >
-      {[12, 34, 56, 78].map((left) => (
-        <div
-          key={left}
-          className="absolute top-1/2 h-3.5 w-[3px] -translate-y-1/2 rounded-full bg-black/20"
-          style={{ left: `${left}%` }}
-        />
-      ))}
-    </div>
-  )
-}
-
-// Destellos de un caminito de puntos — el guiño "mapa del tesoro". Cada
-// uno parpadea solo (opacity en loop), barato de animar: nada de blur,
-// nada de layout, solo opacidad.
-const SPARKLES = [
-  { left: '4%', top: '58%', size: 14, delay: 0 },
-  { left: '30%', top: '20%', size: 10, delay: 1.2 },
-  { left: '68%', top: '48%', size: 16, delay: 2.4 },
-  { left: '90%', top: '12%', size: 11, delay: 0.6 },
-]
-
-function Sparkle({ left, top, size, delay }) {
-  return (
-    <motion.svg
-      viewBox="0 0 24 24"
-      className="absolute text-white"
-      style={{ left, top, width: size, height: size }}
-      animate={{ opacity: [0.15, 0.9, 0.15], scale: [0.8, 1, 0.8] }}
-      transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut', delay }}
-      aria-hidden="true"
-    >
-      <path d="M12 0 L14.5 9.5 L24 12 L14.5 14.5 L12 24 L9.5 14.5 L0 12 L9.5 9.5 Z" fill="currentColor" />
-    </motion.svg>
-  )
-}
-
-// La "escena" decorativa: rama + 3 pandas + caminito de destellos + los
-// props de la referencia (tocadiscos, cámara, lirios, bandera). A
-// diferencia de ForestBackground (que cubre TODA la sección), esto vive
-// en flujo normal DENTRO de la vista de carpetas (ver su montaje en
-// Problemas() — solo con vista === 'carpetas', absolute contra ESE div),
-// así que aparece una sola vez, superpuesto sobre la fila de carpetas,
-// sin tener que adivinar qué tan larga es la página completa.
-//
-// z-20 + pointer-events-none en el contenedor: por encima de las
-// tarjetas (que son position:relative pero sin z-index propio, o sea
-// "z-auto" — un z-20 explícito siempre les gana en el orden de pintado)
-// para que los props/pandas puedan superponerse a sus bordes como pediste,
-// pero sin bloquearles el click (los eventos de mouse pasan de largo).
-// Oculto por debajo de `lg`: en pantallas chicas cada pixel importa más,
-// mejor no competir con las tarjetas.
-function SceneDecorations() {
-  return (
-    <div className="pointer-events-none absolute inset-x-0 -top-10 z-20 hidden h-80 overflow-visible lg:block" aria-hidden="true">
-      <img
-        src="/assets/problemas/branch.png"
-        alt=""
-        onError={(e) => { e.currentTarget.style.display = 'none' }}
-        className="absolute left-[18%] top-10 h-10 w-[48%] object-contain opacity-90"
-      />
-
-      <RedPandaMascot
-        src="/assets/problemas/red-panda-branch.png"
-        alt="Panda rojo sobre la rama"
-        tint={AXIOMA_ORANGE}
-        className="absolute left-1/2 top-2 h-32 w-32 -translate-x-1/2 drop-shadow-lg"
-      />
-      <RedPandaMascot
-        src="/assets/problemas/red-panda-2.png"
-        alt="Panda rojo asomado entre las hojas"
-        tint={AXIOMA_GOLD}
-        delay={2.3}
-        className="absolute left-[1%] top-44 h-20 w-20 drop-shadow-md"
-      />
-      <RedPandaMascot
-        src="/assets/problemas/red-panda-3.png"
-        alt="Panda rojo curioso"
-        tint={AXIOMA_RED}
-        delay={4.1}
-        className="absolute right-[3%] top-52 h-16 w-16 drop-shadow-md"
-      />
-
-      <svg className="absolute inset-x-0 bottom-6 h-32 w-full opacity-80" viewBox="0 0 400 100" preserveAspectRatio="none">
-        <path
-          d="M15 85 Q90 45 160 62 T300 32 T385 58"
-          fill="none"
-          stroke={PARCHMENT}
-          strokeWidth="3"
-          strokeDasharray="2 11"
-          strokeLinecap="round"
-        />
-      </svg>
-      {SPARKLES.map((s, i) => (
-        <Sparkle key={i} {...s} />
-      ))}
-
-      {/* Props de la referencia — tocadiscos, cámara, lirios de agua,
-          bandera de meta al final del caminito. */}
-      <PlaceholderImg
-        src="/assets/problemas/record-player.png"
-        alt=""
-        tint={WOOD_MID}
-        className="absolute left-[6%] bottom-0 h-16 w-16 rounded-xl"
-      />
-      <PlaceholderImg
-        src="/assets/problemas/camera.png"
-        alt=""
-        tint={FOREST_DEEP}
-        className="absolute left-[40%] bottom-2 h-14 w-14 rounded-xl"
-      />
-      <PlaceholderImg
-        src="/assets/problemas/water-lily.png"
-        alt=""
-        tint={FOREST_MID}
-        className="absolute left-[23%] bottom-[-0.5rem] h-10 w-14 rounded-full"
-      />
-      <PlaceholderImg
-        src="/assets/problemas/water-lily.png"
-        alt=""
-        tint={FOREST_MID}
-        className="absolute right-[18%] bottom-0 h-8 w-12 rounded-full"
-      />
-      <PlaceholderImg
-        src="/assets/problemas/flag.png"
-        alt=""
-        tint={AXIOMA_RED}
-        className="absolute right-[5%] bottom-0 h-16 w-10 rounded-md"
-      />
     </div>
   )
 }
@@ -1299,55 +1045,30 @@ export default function Problemas() {
         ? 'problemas'
         : 'carpetas'
 
-  // relative: ForestBackground es `absolute inset-0` y necesita esta
-  // sección como su "regla" de alto — así crece automáticamente con el
-  // contenido (93 problemas filtrados es una sección MUY alta) en vez de
-  // quedarse del tamaño de una sola pantalla.
   return (
-    <section className="relative mx-auto max-w-6xl px-4 py-24 sm:px-6">
-      <ForestBackground />
-      <FallingLeaves />
+    <section className="mx-auto max-w-6xl px-4 py-24 sm:px-6">
+      <AutumnBackground />
 
-      {/* Encabezado: letrero de madera, como si colgara de la rama de la
-          escena decorativa de abajo (SceneDecorations). El degradado CSS
-          queda de respaldo EN el propio div (se ve aunque falte el PNG);
-          la <img> de textura se dibuja encima y, si 404, se esconde sola
-          (onError) para no dejar el ícono de "imagen rota" sobre el
-          letrero. */}
+      {/* Encabezado: mismo fondo shader animado que el Hero (MeshGradient +
+          símbolos flotantes), a menor escala — así la página de Problemas
+          se siente parte del mismo sitio en vez de una página aparte. */}
       <motion.div
         initial="hidden"
         animate="show"
         variants={fadeUp}
-        className="relative mb-12 overflow-hidden rounded-2xl px-6 py-10 text-center shadow-2xl shadow-black/40 sm:px-10"
-        style={{
-          backgroundImage: `radial-gradient(ellipse 100% 60% at 50% 0%, rgba(255,255,255,0.12), transparent 70%), repeating-linear-gradient(90deg, rgba(0,0,0,0.14) 0px, rgba(0,0,0,0.14) 2px, transparent 2px, transparent 64px), linear-gradient(180deg, ${WOOD_LIGHT} 0%, ${WOOD_MID} 55%, ${WOOD_DARK} 100%)`,
-        }}
+        className="relative mb-12 overflow-hidden rounded-3xl px-6 py-10 text-center shadow-2xl shadow-black/20 sm:px-10"
+        style={{ backgroundColor: AXIOMA_DARK }}
       >
-        <img
-          src="/assets/problemas/wood-sign.png"
-          alt=""
-          aria-hidden="true"
-          onError={(e) => { e.currentTarget.style.display = 'none' }}
-          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-        />
-
-        {/* Panda asomado en la esquina del letrero, tal como lo pediste —
-            placeholder <img> absoluto arriba a la izquierda. */}
-        <PlaceholderImg
-          src="/assets/problemas/red-panda-sign.png"
-          alt="Panda rojo asomado en el letrero"
-          tint={AXIOMA_GOLD}
-          className="absolute left-3 top-3 z-10 h-16 w-16 rounded-full sm:left-5 sm:top-5 sm:h-20 sm:w-20"
-        />
-
-        {/* Cuerdas: dos lazos simples arriba, como si el letrero colgara
-            de algo por encima. */}
-        <svg className="pointer-events-none absolute -top-4 left-10 h-9 w-7" viewBox="0 0 24 32" aria-hidden="true">
-          <path d="M6 32V12c0-5.5 4.5-10 10-10" fill="none" stroke={WOOD_DARK} strokeWidth="3" strokeLinecap="round" />
-        </svg>
-        <svg className="pointer-events-none absolute -top-4 right-10 h-9 w-7 scale-x-[-1]" viewBox="0 0 24 32" aria-hidden="true">
-          <path d="M6 32V12c0-5.5 4.5-10 10-10" fill="none" stroke={WOOD_DARK} strokeWidth="3" strokeLinecap="round" />
-        </svg>
+        <div className="pointer-events-none absolute inset-0">
+          <MeshGradient
+            className="absolute inset-0 h-full w-full"
+            colors={[AXIOMA_RED, AXIOMA_ORANGE, AXIOMA_GOLD, AXIOMA_DARK]}
+            speed={0.25}
+            distortion={0.7}
+            swirl={0.25}
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#120303]/70 via-[#120303]/40 to-[#120303]/85" />
+        </div>
 
         <FloatingSymbol symbol="∑" className="pointer-events-none absolute left-[8%] top-[18%] text-3xl text-[#FFB401]/40 sm:text-4xl" delay={0} duration={7} rotate={-6} />
         <FloatingSymbol symbol="π" className="pointer-events-none absolute right-[10%] top-[22%] text-3xl text-[#E57505]/40 sm:text-4xl" delay={0.5} duration={6} rotate={6} />
@@ -1361,11 +1082,7 @@ export default function Problemas() {
           >
             Colección de problemas
           </span>
-          {/* font-display: reusa 'Yeseva One', la misma fuente que ya
-              carga index.html para el resto del sitio (Hero, etc.) — un
-              toque más "letrero tallado" sin tener que agregar una fuente
-              nueva ni tocar index.html/index.css (archivos compartidos). */}
-          <h2 className="font-display text-3xl font-bold text-white sm:text-4xl">Archivo de Problemas</h2>
+          <h2 className="text-3xl font-bold text-white sm:text-4xl">Archivo de Problemas</h2>
           <p className="max-w-xl text-sm text-white/70">
             Explora, filtra y comenta problemas de competencias — cada uno es un hilo abierto para discutir.
           </p>
@@ -1396,71 +1113,55 @@ export default function Problemas() {
 
       <div className="grid grid-cols-1 gap-8 md:grid-cols-[240px_1fr]">
         {/* Sidebar de filtros — misma estructura y lógica de siempre
-            (Año / Tema / Tipo / Carpetas), ahora como un pergamino
-            enrollado entre dos varas de bambú. Se queda fija (sticky) al
-            hacer scroll por la cuadrícula de problemas.
+            (Año / Tema / Tipo / Carpetas), solo con look nuevo. Se queda
+            fija (sticky) al hacer scroll por la cuadrícula de problemas.
 
-            Por qué son 3 piezas (bambú / contenido / bambú) en vez de un
-            solo panel: el marco de bambú necesita quedarse QUIETO como
-            marco, mientras que el contenido (que puede medir más que la
-            pantalla — Año + Tema + Tipo + Carpetas juntos) necesita su
-            propio scroll interno. Metiendo el md:overflow-y-auto en el
-            <aside> completo, el bambú de abajo se hubiera ido con el
-            scroll y solo se vería al llegar al final de la lista — el
-            mismo problema que ya resolvimos una vez, ver el commit
-            anterior. Separando el bambú del contenido, el marco se queda
-            fijo y solo lo de adentro se desplaza. */}
+            md:max-h-[...] + md:overflow-y-auto: sin esto, un sticky más
+            alto que la pantalla (Año + Tema + Tipo + Carpetas junto pueden
+            medir más que el alto visible) queda "pegado" en top-28 sin
+            forma de ver su parte de abajo — hasta que el scroll de toda la
+            página llega al FINAL de la cuadrícula de problemas y recién
+            ahí el sidebar se "despega" y se mueve. Dándole su propio alto
+            máximo + scroll interno, el sidebar se desplaza solo, sin
+            depender de qué tan abajo estés en los problemas. */}
         <motion.aside
           initial="hidden"
           animate="show"
           variants={fadeUp}
-          className="self-start shadow-lg shadow-black/20 md:sticky md:top-28"
+          className="flex flex-col gap-6 self-start rounded-2xl border border-white/60 bg-[#FFFBF5]/90 p-5 shadow-lg shadow-black/5 backdrop-blur-md md:sticky md:top-28 md:max-h-[calc(100vh-9rem)] md:overflow-y-auto"
         >
-          <BambooBar redondeo="rounded-t-lg" />
-          <div
-            className="flex flex-col gap-6 px-5 py-4 md:max-h-[calc(100vh-10.5rem)] md:overflow-y-auto"
-            style={{ backgroundColor: PARCHMENT }}
-          >
-            <div className="flex items-center gap-2 border-b border-black/10 pb-3">
-              <span className="font-serif text-lg italic text-[#B70B0D]">∫</span>
-              <h2 className="font-display text-sm font-bold uppercase tracking-wide text-brand-900">Explorar</h2>
-            </div>
-            <FilterGroup
-              title="Año"
-              options={AÑOS}
-              selected={años}
-              onToggle={toggle(setAños)}
-            />
-            <FilterGroup
-              title="Tema"
-              options={TEMAS}
-              selected={temas}
-              onToggle={toggle(setTemas)}
-            />
-            <FilterGroup
-              title="Tipo de concurso"
-              options={TIPOS}
-              selected={tipos}
-              onToggle={toggle(setTipos)}
-            />
-            <CategoryFilter
-              raices={arbolCategorias}
-              seleccionadas={categoriasSeleccionadas}
-              onToggle={toggle(setCategoriasSeleccionadas)}
-            />
+          <div className="flex items-center gap-2 border-b border-brand-200 pb-3">
+            <span className="font-serif text-lg italic text-[#E57505]">∫</span>
+            <h2 className="text-sm font-bold uppercase tracking-wide text-brand-900">Explorar</h2>
           </div>
-          <BambooBar redondeo="rounded-b-lg" />
+          <FilterGroup
+            title="Año"
+            options={AÑOS}
+            selected={años}
+            onToggle={toggle(setAños)}
+          />
+          <FilterGroup
+            title="Tema"
+            options={TEMAS}
+            selected={temas}
+            onToggle={toggle(setTemas)}
+          />
+          <FilterGroup
+            title="Tipo de concurso"
+            options={TIPOS}
+            selected={tipos}
+            onToggle={toggle(setTipos)}
+          />
+          <CategoryFilter
+            raices={arbolCategorias}
+            seleccionadas={categoriasSeleccionadas}
+            onToggle={toggle(setCategoriasSeleccionadas)}
+          />
         </motion.aside>
 
         {/* Área principal: cuadrícula de tarjetas si hay un filtro activo,
-            o si no, la vista de carpetas estilo AoPS (ver `vista` arriba).
-            relative: SceneDecorations (rama, pandas, props) se posiciona
-            absolute contra ESTE div, no contra toda la sección — así solo
-            hace falta reservar espacio para "la fila de carpetas", no
-            adivinar el alto de toda la página. */}
-        <div className="relative min-w-0">
-          {vista === 'carpetas' && <SceneDecorations />}
-
+            o si no, la vista de carpetas estilo AoPS (ver `vista` arriba). */}
+        <div className="min-w-0">
           {cargando && (
             <div className="flex items-center justify-center rounded-2xl border border-dashed border-brand-300 bg-[#FFFBF5]/95 py-16 text-brand-400">
               Cargando problemas...
@@ -1498,7 +1199,7 @@ export default function Problemas() {
                 <ProblemaCard
                   key={problema._id}
                   problema={problema}
-                  tilt={TILT_VALUES[i % TILT_VALUES.length]}
+                  tilt={i % 2 === 0 ? -1.2 : 1.2}
                   onOpen={setProblemaSeleccionado}
                 />
               ))}
@@ -1521,7 +1222,7 @@ export default function Problemas() {
                   nodo={nodo}
                   count={contarProblemas(nodo, problemas)}
                   color={CATEGORY_ACCENTS[i % CATEGORY_ACCENTS.length]}
-                  tilt={TILT_VALUES[i % TILT_VALUES.length]}
+                  tilt={i % 2 === 0 ? -1.2 : 1.2}
                   onOpen={setCarpetaActual}
                 />
               ))}
@@ -1548,7 +1249,7 @@ export default function Problemas() {
                 <ProblemaCard
                   key={problema._id}
                   problema={problema}
-                  tilt={TILT_VALUES[i % TILT_VALUES.length]}
+                  tilt={i % 2 === 0 ? -1.2 : 1.2}
                   onOpen={setProblemaSeleccionado}
                 />
               ))}
