@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
+import { motion, AnimatePresence } from 'framer-motion'
+import { MeshGradient } from '@paper-design/shaders-react'
+import FloatingSymbol from '../components/motion/FloatingSymbol'
+import Counter from '../components/motion/Counter'
+import { EASE, fadeUp, staggerContainer, popIn } from '../components/motion/variants'
 
 // ---------------------------------------------------------------------------
 // ESQUELETO GENERAL DE ESTE ARCHIVO (para orientarse antes de leer el código
@@ -8,17 +13,26 @@ import 'katex/dist/katex.min.css'
 //
 //   1. Configuración: dirección de la API + helper apiFetch() para hablar
 //      con el backend (fetch + manejo de errores en un solo lugar).
-//   2. Constantes de filtros (AÑOS, TEMAS, TIPOS) — igual que antes.
-//   3. FilterGroup       -> la lista de checkboxes de un filtro.
+//   2. Constantes de filtros (AÑOS, TEMAS, TIPOS) + paleta Axioma reutilizada
+//      del Hero (rojo/naranja/dorado) para el rediseño visual.
+//   3. FilterGroup       -> la lista de opciones de un filtro, ahora como
+//                           "chips" de color en vez de checkboxes planos.
 //   4. AuthInlineForm    -> formulario de login/registro, se muestra dentro
 //                           del modal cuando nadie ha iniciado sesión.
 //   5. ComentarioItem    -> un comentario ya publicado.
-//   6. ProblemaModal     -> el modal de un problema: enunciado + comentarios.
-//   7. Problemas         -> el componente principal: pide los problemas a la
-//                           API, aplica los filtros, dibuja la tabla y decide
-//                           qué modal mostrar. Antes leía todo de un array
-//                           escrito a mano (PROBLEMAS); ahora ese array ya no
-//                           existe — los datos vienen de la base de datos.
+//   6. ProblemaModal     -> el modal de un problema: enunciado + comentarios,
+//                           ahora con animación de entrada/salida.
+//   7. ProblemaCard      -> una tarjeta de la cuadrícula de problemas (antes
+//                           era una fila de tabla).
+//   8. Problemas         -> el componente principal: pide los problemas a la
+//                           API, aplica los filtros, dibuja la cuadrícula y
+//                           decide qué modal mostrar.
+//
+// Este archivo mantiene exactamente la misma lógica de datos que antes
+// (fetch, filtros, autenticación, comentarios) — el rediseño solo cambia
+// el JSX/CSS de cómo se ve cada pieza, inspirado en el foro de AoPS
+// (estructura de carpetas + hilo por problema, que ya teníamos) y en el
+// estilo visual de Hack the North (color, movimiento, tarjetas "ladeadas").
 // ---------------------------------------------------------------------------
 
 // Dirección del backend. En desarrollo, Vite expone las variables que
@@ -29,6 +43,15 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 // al recargar la página (localStorage sobrevive a un refresh; el estado de
 // React no).
 const AUTH_STORAGE_KEY = 'axioma_auth'
+
+// Misma paleta que ya usa Hero.jsx para el fondo animado — reutilizarla
+// aquí hace que Problemas se sienta parte del mismo sitio, no una página
+// aparte con sus propios colores inventados.
+const AXIOMA_RED = '#B70B0D'
+const AXIOMA_ORANGE = '#E57505'
+const AXIOMA_GOLD = '#FFB401'
+const AXIOMA_DARK = '#120303'
+const AXIOMA_GRADIENT = `linear-gradient(135deg, ${AXIOMA_GOLD} 0%, ${AXIOMA_ORANGE} 45%, ${AXIOMA_RED} 100%)`
 
 // apiFetch centraliza las 3 cosas que se repetirían en cada llamada a la
 // API: mandar el body como JSON, agregar el token de sesión si existe, y
@@ -140,31 +163,55 @@ function collectDescendantIds(nodo) {
   )
 }
 
+// Colores "estampa" por dificultad — mismo significado de siempre (verde
+// fácil, ámbar media, rojo difícil) pero usando el rojo/dorado de la marca
+// Axioma en vez de un ámbar/rosa genérico.
 const DIFICULTAD_STYLES = {
-  Fácil: 'bg-emerald-100 text-emerald-700',
-  Media: 'bg-amber-100 text-amber-700',
-  Difícil: 'bg-rose-100 text-rose-700',
+  Fácil: 'bg-emerald-500 text-white',
+  Media: `text-brand-900`,
+  Difícil: 'bg-[#B70B0D] text-white',
+}
+const DIFICULTAD_BG = {
+  Media: AXIOMA_GOLD,
 }
 
+// Colores de acento por profundidad en el árbol de carpetas — ciclan entre
+// los 3 tonos de la marca para que se note visualmente qué tan anidada
+// está cada carpeta, sin depender solo de la indentación.
+const CATEGORY_ACCENTS = [AXIOMA_RED, AXIOMA_ORANGE, AXIOMA_GOLD]
+
+// Un "chip" de filtro: se ve como una pastilla de color. Por dentro sigue
+// siendo un <input type="checkbox"> real (oculto con sr-only) para que el
+// teclado y los lectores de pantalla lo sigan tratando como una casilla de
+// verificación normal — react-facing className solo decide CÓMO se ve.
 function FilterGroup({ title, options, selected, onToggle }) {
   return (
     <div className="flex flex-col gap-2">
       <h3 className="text-sm font-semibold text-brand-900">{title}</h3>
-      <div className="flex flex-col gap-1">
-        {options.map((option) => (
-          <label
-            key={option}
-            className="flex items-center gap-2 text-sm text-brand-600"
-          >
-            <input
-              type="checkbox"
-              checked={selected.includes(option)}
-              onChange={() => onToggle(option)}
-              className="h-4 w-4 rounded border-brand-300"
-            />
-            {option}
-          </label>
-        ))}
+      <div className="flex flex-wrap gap-2">
+        {options.map((option) => {
+          const activo = selected.includes(option)
+          return (
+            <label key={option} className="cursor-pointer">
+              <input
+                type="checkbox"
+                checked={activo}
+                onChange={() => onToggle(option)}
+                className="peer sr-only"
+              />
+              <span
+                className={`inline-block select-none rounded-full border px-3 py-1 text-xs font-medium transition-all duration-200 active:scale-95 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-900 peer-focus-visible:ring-offset-1 ${
+                  activo
+                    ? 'border-transparent text-white shadow-md'
+                    : 'border-brand-300 bg-white text-brand-600 hover:border-[#E57505] hover:text-[#E57505]'
+                }`}
+                style={activo ? { backgroundImage: AXIOMA_GRADIENT } : undefined}
+              >
+                {option}
+              </span>
+            </label>
+          )
+        })}
       </div>
     </div>
   )
@@ -173,19 +220,33 @@ function FilterGroup({ title, options, selected, onToggle }) {
 // Una fila del árbol de carpetas: se dibuja a sí misma, y luego se dibuja a
 // sí misma otra vez por cada hijo (con depth+1) — así es como un árbol se
 // vuelve una lista de casillas con sangría creciente, sin importar cuántos
-// niveles tenga en realidad.
+// niveles tenga en realidad. El color de acento y el "punto" relleno vienen
+// de `activo`/`depth`, calculados aquí mismo — no hace falta CSS especial.
 function CategoryTreeNode({ nodo, depth, seleccionadas, onToggle }) {
+  const accent = CATEGORY_ACCENTS[depth % CATEGORY_ACCENTS.length]
+  const activo = seleccionadas.includes(nodo._id)
   return (
     <div>
       <label
-        className="flex items-center gap-2 text-sm text-brand-600"
-        style={{ paddingLeft: `${depth * 14}px` }}
+        className="group flex cursor-pointer items-center gap-2 rounded-lg py-1.5 pr-2 text-sm text-brand-600 transition-all duration-150 hover:translate-x-1 hover:bg-brand-100"
+        style={{
+          paddingLeft: `${depth * 14 + 8}px`,
+          borderLeft: depth > 0 ? `2px solid ${accent}55` : '2px solid transparent',
+        }}
       >
         <input
           type="checkbox"
-          checked={seleccionadas.includes(nodo._id)}
+          checked={activo}
           onChange={() => onToggle(nodo._id)}
-          className="h-4 w-4 rounded border-brand-300"
+          className="peer sr-only"
+        />
+        <span
+          className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 transition-transform duration-200 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-900 peer-focus-visible:ring-offset-1"
+          style={{
+            borderColor: accent,
+            backgroundColor: activo ? accent : 'transparent',
+            transform: activo ? 'scale(1.15)' : 'scale(1)',
+          }}
         />
         {nodo.name}
       </label>
@@ -252,8 +313,11 @@ function AuthInlineForm({ onAuthSuccess }) {
     }
   }
 
+  const inputClass =
+    'rounded-lg border border-brand-300 px-3 py-2 text-sm outline-none transition-colors focus:border-[#E57505] focus:ring-2 focus:ring-[#E57505]/30'
+
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3 rounded-xl border border-brand-200 bg-brand-100 p-4">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3 rounded-xl border border-brand-200 bg-white p-4 shadow-sm">
       <p className="text-sm text-brand-700">
         {modo === 'login'
           ? 'Inicia sesión para comentar.'
@@ -267,7 +331,7 @@ function AuthInlineForm({ onAuthSuccess }) {
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           required
-          className="rounded-lg border border-brand-300 px-3 py-2 text-sm"
+          className={inputClass}
         />
       )}
       <input
@@ -276,7 +340,7 @@ function AuthInlineForm({ onAuthSuccess }) {
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         required
-        className="rounded-lg border border-brand-300 px-3 py-2 text-sm"
+        className={inputClass}
       />
       <input
         type="password"
@@ -285,7 +349,7 @@ function AuthInlineForm({ onAuthSuccess }) {
         onChange={(e) => setPassword(e.target.value)}
         required
         minLength={8}
-        className="rounded-lg border border-brand-300 px-3 py-2 text-sm"
+        className={inputClass}
       />
 
       {error && <p className="text-sm text-rose-600">{error}</p>}
@@ -294,14 +358,15 @@ function AuthInlineForm({ onAuthSuccess }) {
         <button
           type="submit"
           disabled={enviando}
-          className="rounded-lg bg-brand-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="rounded-lg px-4 py-2 text-sm font-medium text-white shadow-md transition-transform active:scale-95 disabled:opacity-50"
+          style={{ backgroundImage: AXIOMA_GRADIENT }}
         >
           {enviando ? 'Un momento...' : modo === 'login' ? 'Iniciar sesión' : 'Registrarme'}
         </button>
         <button
           type="button"
           onClick={() => setModo(modo === 'login' ? 'signup' : 'login')}
-          className="text-sm text-brand-600 underline"
+          className="text-sm text-brand-600 underline hover:text-[#E57505]"
         >
           {modo === 'login' ? 'Crear una cuenta' : 'Ya tengo cuenta'}
         </button>
@@ -317,27 +382,38 @@ function ComentarioItem({ comentario, esPropio, onEliminar }) {
     hour: '2-digit',
     minute: '2-digit',
   })
+  const username = comentario.author?.username || 'Usuario'
   return (
-    <div className="rounded-lg border border-brand-200 bg-brand-50 p-3">
-      <div className="mb-1 flex items-start justify-between gap-3">
-        <p className="text-xs font-semibold text-brand-900">
-          {comentario.author?.username || 'Usuario'}{' '}
-          <span className="font-normal text-brand-400">· {fecha}</span>
-        </p>
-        {/* Solo el autor ve este botón — el backend también lo exige por su
-            cuenta (ver comments.routes.js), esto es solo para no mostrar un
-            botón que de todos modos fallaría. */}
-        {esPropio && (
-          <button
-            type="button"
-            onClick={onEliminar}
-            className="shrink-0 text-xs text-rose-500 hover:underline"
-          >
-            Eliminar
-          </button>
-        )}
+    <div className="flex gap-3 rounded-xl border border-brand-200 bg-white p-3 shadow-sm">
+      {/* Avatar de iniciales — solo decorativo, no viene de ningún dato
+          nuevo, es la primera letra del username que ya teníamos. */}
+      <div
+        aria-hidden="true"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
+        style={{ backgroundImage: `linear-gradient(135deg, ${AXIOMA_ORANGE}, ${AXIOMA_GOLD})` }}
+      >
+        {username.charAt(0).toUpperCase()}
       </div>
-      <p className="text-sm text-brand-700">{comentario.body}</p>
+      <div className="min-w-0 flex-1">
+        <div className="mb-1 flex items-start justify-between gap-3">
+          <p className="text-xs font-semibold text-brand-900">
+            {username} <span className="font-normal text-brand-400">· {fecha}</span>
+          </p>
+          {/* Solo el autor ve este botón — el backend también lo exige por su
+              cuenta (ver comments.routes.js), esto es solo para no mostrar un
+              botón que de todos modos fallaría. */}
+          {esPropio && (
+            <button
+              type="button"
+              onClick={onEliminar}
+              className="shrink-0 text-xs text-rose-500 hover:underline"
+            >
+              Eliminar
+            </button>
+          )}
+        </div>
+        <p className="text-sm text-brand-700">{comentario.body}</p>
+      </div>
     </div>
   )
 }
@@ -423,96 +499,175 @@ function ProblemaModal({ problema, onClose, auth, onAuthSuccess, onAuthExpired }
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-brand-900/50 p-4"
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-brand-900/60 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
-      <div
+      <motion.div
+        initial={{ opacity: 0, scale: 0.92, y: 16 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.92, y: 16 }}
+        transition={{ duration: 0.25, ease: EASE }}
         role="dialog"
         aria-modal="true"
         aria-labelledby="titulo-modal-problema"
-        className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl bg-brand-50 p-6 shadow-xl"
+        className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-brand-50 shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="mb-4 flex items-start justify-between gap-4">
-          <h3 id="titulo-modal-problema" className="text-xl font-semibold text-brand-900">
-            {problema.titulo}
-          </h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-brand-400 hover:text-brand-900"
-            aria-label="Cerrar"
-          >
-            ✕
-          </button>
-        </div>
-        <p className="mb-4 text-sm text-brand-500">
-          {problema.codigo} · {problema.tema} · {problema.tipo} · {problema.año}
-        </p>
-        {/* div, no <p>: una fórmula en "display mode" se renderiza como un
-            <div>, y un <div> no puede vivir legalmente dentro de un <p> en
-            HTML (el mismo tipo de error que se ve en Contacto.jsx). */}
-        <div className="mb-6 whitespace-pre-line text-brand-700">
-          {renderEnunciado(problema.enunciado)}
-        </div>
+        {/* Franja de color: mismo gradiente de marca que el resto de la
+            página, para que el modal se sienta parte del mismo sistema. */}
+        <div className="h-1.5 w-full shrink-0" style={{ backgroundImage: AXIOMA_GRADIENT }} />
 
-        <div className="flex-1 overflow-y-auto">
-          <h4 className="mb-2 text-sm font-semibold text-brand-900">Comentarios</h4>
+        <div className="flex min-h-0 flex-1 flex-col p-6">
+          <div className="mb-4 flex items-start justify-between gap-4">
+            <h3 id="titulo-modal-problema" className="text-xl font-semibold text-brand-900">
+              {problema.titulo}
+            </h3>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-brand-400 transition-transform hover:scale-110 hover:text-brand-900"
+              aria-label="Cerrar"
+            >
+              ✕
+            </button>
+          </div>
+          <p className="mb-4 flex flex-wrap gap-1.5">
+            <span className="rounded-full bg-brand-100 px-2 py-0.5 font-mono text-xs text-brand-500">
+              {problema.codigo}
+            </span>
+            <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs text-brand-500">{problema.tema}</span>
+            <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs text-brand-500">{problema.tipo}</span>
+            <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs text-brand-500">{problema.año}</span>
+          </p>
+          {/* div, no <p>: una fórmula en "display mode" se renderiza como un
+              <div>, y un <div> no puede vivir legalmente dentro de un <p> en
+              HTML (el mismo tipo de error que se ve en Contacto.jsx). */}
+          <div className="mb-6 whitespace-pre-line text-brand-700">
+            {renderEnunciado(problema.enunciado)}
+          </div>
 
-          {cargandoComentarios && (
-            <p className="text-sm text-brand-400">Cargando comentarios...</p>
-          )}
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <h4 className="mb-2 text-sm font-semibold text-brand-900">Comentarios</h4>
 
-          {!cargandoComentarios && comentarios.length === 0 && (
-            <p className="text-sm text-brand-400">Sé el primero en comentar.</p>
-          )}
+            {cargandoComentarios && (
+              <p className="text-sm text-brand-400">Cargando comentarios...</p>
+            )}
 
-          <div className="flex flex-col gap-2">
-            {comentarios.map((c) => (
-              <ComentarioItem
-                key={c._id}
-                comentario={c}
-                esPropio={Boolean(auth && c.author?._id === auth.user.id)}
-                onEliminar={() => handleEliminarComentario(c._id)}
-              />
-            ))}
+            {!cargandoComentarios && comentarios.length === 0 && (
+              <p className="text-sm text-brand-400">Sé el primero en comentar.</p>
+            )}
+
+            <div className="flex flex-col gap-2">
+              {comentarios.map((c) => (
+                <ComentarioItem
+                  key={c._id}
+                  comentario={c}
+                  esPropio={Boolean(auth && c.author?._id === auth.user.id)}
+                  onEliminar={() => handleEliminarComentario(c._id)}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-4 shrink-0">
+            {auth ? (
+              <form onSubmit={handleEnviarComentario} className="flex flex-col gap-2">
+                <textarea
+                  value={nuevoComentario}
+                  onChange={(e) => setNuevoComentario(e.target.value)}
+                  placeholder="Escribe un comentario..."
+                  rows={3}
+                  maxLength={2000}
+                  className="rounded-lg border border-brand-300 px-3 py-2 text-sm outline-none transition-colors focus:border-[#E57505] focus:ring-2 focus:ring-[#E57505]/30"
+                />
+                {errorComentario && (
+                  <p className="text-sm text-rose-600">{errorComentario}</p>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-brand-400">
+                    {nuevoComentario.length}/2000
+                  </span>
+                  <button
+                    type="submit"
+                    disabled={enviandoComentario}
+                    className="rounded-lg px-4 py-2 text-sm font-medium text-white shadow-md transition-transform active:scale-95 disabled:opacity-50"
+                    style={{ backgroundImage: AXIOMA_GRADIENT }}
+                  >
+                    {enviandoComentario ? 'Enviando...' : 'Comentar'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <AuthInlineForm onAuthSuccess={onAuthSuccess} />
+            )}
           </div>
         </div>
+      </motion.div>
+    </motion.div>
+  )
+}
 
-        <div className="mt-4">
-          {auth ? (
-            <form onSubmit={handleEnviarComentario} className="flex flex-col gap-2">
-              <textarea
-                value={nuevoComentario}
-                onChange={(e) => setNuevoComentario(e.target.value)}
-                placeholder="Escribe un comentario..."
-                rows={3}
-                maxLength={2000}
-                className="rounded-lg border border-brand-300 px-3 py-2 text-sm"
-              />
-              {errorComentario && (
-                <p className="text-sm text-rose-600">{errorComentario}</p>
-              )}
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-brand-400">
-                  {nuevoComentario.length}/2000
-                </span>
-                <button
-                  type="submit"
-                  disabled={enviandoComentario}
-                  className="rounded-lg bg-brand-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-                >
-                  {enviandoComentario ? 'Enviando...' : 'Comentar'}
-                </button>
-              </div>
-            </form>
-          ) : (
-            <AuthInlineForm onAuthSuccess={onAuthSuccess} />
-          )}
-        </div>
+// Una tarjeta de la cuadrícula de problemas — reemplaza la fila de tabla
+// que había antes. `tilt` es un pequeño ángulo (en grados) que la deja
+// "ladeada" como una nota pegada en un pizarrón; al pasar el mouse se
+// endereza y se levanta un poco (whileHover), inspirado en las tarjetas de
+// hackthenorth.com.
+function ProblemaCard({ problema, tilt, onOpen }) {
+  const dificultadClass = DIFICULTAD_STYLES[problema.dificultad]
+  const dificultadBg = DIFICULTAD_BG[problema.dificultad]
+
+  return (
+    <motion.button
+      type="button"
+      onClick={() => onOpen(problema)}
+      variants={popIn(tilt)}
+      whileHover={{ rotate: 0, y: -6, scale: 1.02 }}
+      whileTap={{ scale: 0.97 }}
+      className="group flex flex-col gap-3 rounded-2xl border border-brand-200 bg-white p-5 text-left shadow-sm transition-shadow duration-200 hover:shadow-xl hover:shadow-brand-900/10"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <span className="rounded-md bg-brand-100 px-2 py-0.5 font-mono text-xs text-brand-500">
+          {problema.codigo}
+        </span>
+        <span
+          className={`rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide shadow-sm ${dificultadClass}`}
+          style={dificultadBg ? { backgroundColor: dificultadBg } : undefined}
+        >
+          {problema.dificultad}
+        </span>
       </div>
-    </div>
+
+      <h3 className="text-base font-semibold text-brand-900 transition-colors group-hover:text-[#B70B0D]">
+        {problema.titulo}
+      </h3>
+
+      <div className="flex flex-wrap gap-1.5 text-[11px] text-brand-500">
+        <span className="rounded-full bg-brand-100 px-2 py-0.5">{problema.tema}</span>
+        <span className="rounded-full bg-brand-100 px-2 py-0.5">{problema.tipo}</span>
+        <span className="rounded-full bg-brand-100 px-2 py-0.5">{problema.año}</span>
+      </div>
+
+      {/* Barra de % de éxito: crece de 0 al valor real cuando la tarjeta
+          aparece — el mismo tipo de animación "cuenta hacia arriba" que ya
+          usa <Counter> en el Hero, pero como barra en vez de número. */}
+      <div className="mt-1 flex items-center gap-2">
+        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-brand-100">
+          <motion.div
+            className="h-full rounded-full"
+            style={{ backgroundImage: AXIOMA_GRADIENT }}
+            initial={{ width: 0 }}
+            animate={{ width: `${problema.exito}%` }}
+            transition={{ duration: 0.9, ease: EASE }}
+          />
+        </div>
+        <span className="text-xs font-medium text-brand-500">{problema.exito}%</span>
+      </div>
+    </motion.button>
   )
 }
 
@@ -603,25 +758,106 @@ export default function Problemas() {
     })
   }, [problemas, años, temas, tipos, categoriasSeleccionadas, categoriasEfectivas])
 
+  // Estadísticas para los contadores animados del encabezado — se calculan
+  // solas a partir de los problemas ya cargados, no son datos nuevos.
+  const temasCubiertos = useMemo(() => new Set(problemas.map((p) => p.tema)).size, [problemas])
+  const exitoPromedio = useMemo(() => {
+    if (problemas.length === 0) return 0
+    return Math.round(problemas.reduce((suma, p) => suma + p.exito, 0) / problemas.length)
+  }, [problemas])
+
+  // Llave que cambia cada vez que cambia algún filtro. Se la damos como
+  // `key` a la cuadrícula de tarjetas: cuando React ve una key distinta,
+  // desmonta la cuadrícula vieja y monta una nueva, lo que hace que la
+  // animación de entrada (staggerContainer) se repita en cada filtrado en
+  // vez de jugarse una sola vez al cargar la página.
+  const filtrosKey = useMemo(
+    () => JSON.stringify({ años, temas, tipos, categoriasSeleccionadas }),
+    [años, temas, tipos, categoriasSeleccionadas],
+  )
+
   return (
     <section className="mx-auto max-w-6xl px-4 py-24 sm:px-6">
-      <div className="mb-12 flex flex-col items-center gap-2 text-center">
-        <h2 className="text-3xl font-bold text-brand-900 sm:text-4xl">
-          Archivo de Problemas
-        </h2>
-        {auth && (
-          <p className="text-sm text-brand-500">
-            Conectado como <strong>{auth.user.username}</strong> ·{' '}
-            <button onClick={handleLogout} className="underline">
-              cerrar sesión
-            </button>
-          </p>
-        )}
-      </div>
+      {/* Encabezado: mismo fondo shader animado que el Hero (MeshGradient +
+          símbolos flotantes), a menor escala — así la página de Problemas
+          se siente parte del mismo sitio en vez de una página aparte. */}
+      <motion.div
+        initial="hidden"
+        animate="show"
+        variants={fadeUp}
+        className="relative mb-12 overflow-hidden rounded-3xl px-6 py-10 text-center sm:px-10"
+        style={{ backgroundColor: AXIOMA_DARK }}
+      >
+        <div className="pointer-events-none absolute inset-0">
+          <MeshGradient
+            className="absolute inset-0 h-full w-full"
+            colors={[AXIOMA_RED, AXIOMA_ORANGE, AXIOMA_GOLD, AXIOMA_DARK]}
+            speed={0.25}
+            distortion={0.7}
+            swirl={0.25}
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#120303]/70 via-[#120303]/40 to-[#120303]/85" />
+        </div>
 
-      <div className="grid grid-cols-1 gap-8 md:grid-cols-[220px_1fr]">
-        {/* Sidebar de filtros */}
-        <aside className="flex flex-col gap-6 rounded-2xl border border-brand-200 bg-brand-50 p-5">
+        <FloatingSymbol symbol="∑" className="pointer-events-none absolute left-[8%] top-[18%] text-3xl text-[#FFB401]/40 sm:text-4xl" delay={0} duration={7} rotate={-6} />
+        <FloatingSymbol symbol="π" className="pointer-events-none absolute right-[10%] top-[22%] text-3xl text-[#E57505]/40 sm:text-4xl" delay={0.5} duration={6} rotate={6} />
+        <FloatingSymbol symbol="∞" className="pointer-events-none absolute left-[14%] bottom-[16%] text-2xl text-[#FFB401]/30 sm:text-3xl" delay={0.9} duration={8} rotate={4} />
+        <FloatingSymbol symbol="√" className="pointer-events-none absolute right-[16%] bottom-[18%] text-2xl text-[#E57505]/30 sm:text-3xl" delay={1.2} duration={6.5} rotate={-5} />
+
+        <div className="relative flex flex-col items-center gap-3">
+          <span
+            className="bg-clip-text text-xs font-semibold uppercase tracking-[0.35em] text-transparent"
+            style={{ backgroundImage: AXIOMA_GRADIENT }}
+          >
+            Colección de problemas
+          </span>
+          <h2 className="text-3xl font-bold text-white sm:text-4xl">Archivo de Problemas</h2>
+          <p className="max-w-xl text-sm text-white/70">
+            Explora, filtra y comenta problemas de competencias — cada uno es un hilo abierto para discutir.
+          </p>
+
+          {auth && (
+            <p className="mt-1 rounded-full bg-white/10 px-4 py-1 text-xs text-white/80 backdrop-blur">
+              Conectado como <strong className="text-white">{auth.user.username}</strong> ·{' '}
+              <button onClick={handleLogout} className="underline underline-offset-2 hover:text-white">
+                cerrar sesión
+              </button>
+            </p>
+          )}
+
+          {!cargando && !errorCarga && problemas.length > 0 && (
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-6 sm:gap-10">
+              <div className="flex flex-col items-center">
+                <Counter value={problemas.length} className="text-2xl font-bold text-white sm:text-3xl" />
+                <span className="text-[11px] uppercase tracking-wide text-white/60">Problemas</span>
+              </div>
+              <div className="flex flex-col items-center">
+                <Counter value={temasCubiertos} className="text-2xl font-bold text-white sm:text-3xl" />
+                <span className="text-[11px] uppercase tracking-wide text-white/60">Temas</span>
+              </div>
+              <div className="flex flex-col items-center">
+                <Counter value={exitoPromedio} suffix="%" className="text-2xl font-bold text-white sm:text-3xl" />
+                <span className="text-[11px] uppercase tracking-wide text-white/60">Éxito promedio</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </motion.div>
+
+      <div className="grid grid-cols-1 gap-8 md:grid-cols-[240px_1fr]">
+        {/* Sidebar de filtros — misma estructura y lógica de siempre
+            (Año / Tema / Tipo / Carpetas), solo con look nuevo. Se queda
+            fija (sticky) al hacer scroll por la cuadrícula de problemas. */}
+        <motion.aside
+          initial="hidden"
+          animate="show"
+          variants={fadeUp}
+          className="flex flex-col gap-6 self-start rounded-2xl border border-brand-200 bg-brand-50 p-5 md:sticky md:top-28"
+        >
+          <div className="flex items-center gap-2 border-b border-brand-200 pb-3">
+            <span className="font-serif text-lg italic text-[#E57505]">∫</span>
+            <h2 className="text-sm font-bold uppercase tracking-wide text-brand-900">Explorar</h2>
+          </div>
           <FilterGroup
             title="Año"
             options={AÑOS}
@@ -645,81 +881,61 @@ export default function Problemas() {
             seleccionadas={categoriasSeleccionadas}
             onToggle={toggle(setCategoriasSeleccionadas)}
           />
-        </aside>
+        </motion.aside>
 
-        {/* Tabla central */}
-        <div className="overflow-x-auto rounded-2xl border border-brand-200">
-          <table className="w-full min-w-[560px] text-left text-sm">
-            <thead className="bg-brand-100 text-brand-700">
-              <tr>
-                <th className="px-4 py-3 font-semibold">ID</th>
-                <th className="px-4 py-3 font-semibold">Título</th>
-                <th className="px-4 py-3 font-semibold">Dificultad</th>
-                <th className="px-4 py-3 font-semibold">% de éxito</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-brand-200 bg-brand-50">
-              {cargando && (
-                <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-brand-400">
-                    Cargando problemas...
-                  </td>
-                </tr>
-              )}
+        {/* Cuadrícula de tarjetas (antes era una tabla) */}
+        <div className="min-w-0">
+          {cargando && (
+            <div className="flex items-center justify-center rounded-2xl border border-dashed border-brand-300 bg-brand-50 py-16 text-brand-400">
+              Cargando problemas...
+            </div>
+          )}
 
-              {!cargando && errorCarga && (
-                <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-rose-600">
-                    No se pudo conectar con el servidor: {errorCarga}
-                  </td>
-                </tr>
-              )}
+          {!cargando && errorCarga && (
+            <div className="flex items-center justify-center rounded-2xl border border-dashed border-rose-300 bg-rose-50 px-6 py-16 text-center text-rose-600">
+              No se pudo conectar con el servidor: {errorCarga}
+            </div>
+          )}
 
-              {!cargando &&
-                !errorCarga &&
-                problemasFiltrados.map((problema) => (
-                  <tr
-                    key={problema._id}
-                    onClick={() => setProblemaSeleccionado(problema)}
-                    className="cursor-pointer transition-colors hover:bg-brand-100"
-                  >
-                    <td className="px-4 py-3 font-mono text-brand-500">
-                      {problema.codigo}
-                    </td>
-                    <td className="px-4 py-3 text-brand-900">{problema.titulo}</td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`rounded-full px-2 py-1 text-xs font-medium ${DIFICULTAD_STYLES[problema.dificultad]}`}
-                      >
-                        {problema.dificultad}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-brand-600">{problema.exito}%</td>
-                  </tr>
-                ))}
+          {!cargando && !errorCarga && problemasFiltrados.length === 0 && (
+            <div className="flex items-center justify-center rounded-2xl border border-dashed border-brand-300 bg-brand-50 py-16 text-brand-400">
+              No hay problemas que coincidan con los filtros.
+            </div>
+          )}
 
-              {!cargando && !errorCarga && problemasFiltrados.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-4 py-8 text-center text-brand-400">
-                    No hay problemas que coincidan con los filtros.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          {!cargando && !errorCarga && problemasFiltrados.length > 0 && (
+            <motion.div
+              key={filtrosKey}
+              variants={staggerContainer(0.04)}
+              initial="hidden"
+              animate="show"
+              className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
+            >
+              {problemasFiltrados.map((problema, i) => (
+                <ProblemaCard
+                  key={problema._id}
+                  problema={problema}
+                  tilt={i % 2 === 0 ? -1.2 : 1.2}
+                  onOpen={setProblemaSeleccionado}
+                />
+              ))}
+            </motion.div>
+          )}
         </div>
       </div>
 
-      {problemaSeleccionado && (
-        <ProblemaModal
-          key={problemaSeleccionado._id}
-          problema={problemaSeleccionado}
-          onClose={() => setProblemaSeleccionado(null)}
-          auth={auth}
-          onAuthSuccess={handleAuthSuccess}
-          onAuthExpired={handleLogout}
-        />
-      )}
+      <AnimatePresence>
+        {problemaSeleccionado && (
+          <ProblemaModal
+            key={problemaSeleccionado._id}
+            problema={problemaSeleccionado}
+            onClose={() => setProblemaSeleccionado(null)}
+            auth={auth}
+            onAuthSuccess={handleAuthSuccess}
+            onAuthExpired={handleLogout}
+          />
+        )}
+      </AnimatePresence>
     </section>
   )
 }
