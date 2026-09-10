@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { useActiveSection } from '../hooks/useActiveSection'
-import AxiomaMark from './AxiomaMark'
 
 // Links que hacen scroll a una sección del one-pager ("/").
 // Si agregan una sección nueva al one-pager, agréguenla aquí también.
