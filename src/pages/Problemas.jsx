@@ -166,6 +166,16 @@ function collectDescendantIds(nodo) {
   )
 }
 
+// Cuántos problemas viven dentro de una carpeta (contando sus subcarpetas
+// también) — reutiliza collectDescendantIds de arriba, así que "Putnam"
+// cuenta los problemas de TODOS sus años, no solo los que apuntan
+// directamente a "Putnam". Se usa para el numerito debajo de cada
+// FolderCard (ej. "6 problemas").
+function contarProblemas(nodo, problemas) {
+  const ids = new Set(collectDescendantIds(nodo))
+  return problemas.filter((p) => ids.has(p.category)).length
+}
+
 // Colores "estampa" por dificultad — mismo significado de siempre (verde
 // fácil, ámbar media, rojo difícil) pero usando el rojo/dorado de la marca
 // Axioma en vez de un ámbar/rosa genérico.
@@ -529,7 +539,7 @@ function ProblemaModal({ problema, onClose, auth, onAuthSuccess, onAuthExpired }
         role="dialog"
         aria-modal="true"
         aria-labelledby="titulo-modal-problema"
-        className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-[#FFFBF5] shadow-2xl"
+        className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-[#FFFBF5] shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         {/* Franja de color: mismo gradiente de marca que el resto de la
@@ -660,6 +670,80 @@ function ProblemaCard({ problema, tilt, onOpen }) {
         {formatearTitulo(problema)}
       </h3>
     </motion.button>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Vista de carpetas, estilo AoPS (artofproblemsolving.com/community/c13_
+// contests): en vez de mostrar los 93 problemas de golpe al entrar a la
+// página, se navega por carpetas — Putnam / OMMU Primera Ronda / OMMU
+// Nacional primero, luego el año adentro de cada una, y solo AL FINAL los
+// problemas de verdad. Es la MISMA jerarquía que ya arma buildCategoryTree
+// para el árbol del sidebar (ver arriba) — esto solo la dibuja distinto:
+// como carpetas para navegar en vez de casillas para filtrar.
+// ---------------------------------------------------------------------------
+
+// Ícono de carpeta dibujado a mano en SVG (nada de emoji) — un rectángulo
+// con una pestaña arriba a la izquierda, el dibujo clásico de "carpeta".
+function FolderIcon({ className, style }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} style={style} fill="currentColor" aria-hidden="true">
+      <path d="M3 6.5C3 5.67 3.67 5 4.5 5H9.5l2 2H19.5c.83 0 1.5.67 1.5 1.5v9c0 .83-.67 1.5-1.5 1.5h-15C3.67 19 3 18.33 3 17.5v-11z" />
+    </svg>
+  )
+}
+
+// Una carpeta clickeable: nombre + cuántos problemas tiene adentro (contando
+// subcarpetas). Visualmente es a propósito MUY distinta de ProblemaCard
+// (ícono grande y centrado en vez de título+dificultad) para que se sienta
+// de inmediato como "esto te lleva más adentro", no "esto abre un problema".
+function FolderCard({ nodo, count, color, tilt, onOpen }) {
+  return (
+    <motion.button
+      type="button"
+      onClick={() => onOpen(nodo._id)}
+      variants={popIn(tilt)}
+      whileHover={{ rotate: 0, y: -6, scale: 1.02 }}
+      whileTap={{ scale: 0.97 }}
+      className="group flex flex-col items-center gap-2 rounded-2xl border border-brand-200 bg-[#FFFBF5] px-5 py-8 text-center shadow-md shadow-black/5 transition-shadow duration-200 hover:shadow-xl hover:shadow-brand-900/10"
+    >
+      <FolderIcon className="h-12 w-12 transition-transform group-hover:scale-110" style={{ color }} />
+      <h3 className="text-lg font-semibold text-brand-900 transition-colors group-hover:text-[#B70B0D]">
+        {nodo.name}
+      </h3>
+      <span className="text-xs text-brand-500">
+        {count} {count === 1 ? 'problema' : 'problemas'}
+      </span>
+    </motion.button>
+  )
+}
+
+// Migas de pan ("Inicio / Putnam / 2021") para volver a una carpeta de
+// arriba sin tener que salir por completo. El último tramo (dónde estás
+// parado ahora) no es un botón, los anteriores sí.
+function Breadcrumb({ ruta, onNavigate }) {
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-1.5 text-sm">
+      {ruta.map((item, i) => {
+        const esUltimo = i === ruta.length - 1
+        return (
+          <span key={item._id ?? 'inicio'} className="flex items-center gap-1.5">
+            {i > 0 && <span className="text-brand-300">/</span>}
+            {esUltimo ? (
+              <span className="font-semibold text-brand-900">{item.name}</span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onNavigate(item._id)}
+                className="text-brand-500 transition-colors hover:text-[#E57505] hover:underline"
+              >
+                {item.name}
+              </button>
+            )}
+          </span>
+        )
+      })}
+    </div>
   )
 }
 
@@ -810,6 +894,14 @@ export default function Problemas() {
   const [categoriasSeleccionadas, setCategoriasSeleccionadas] = useState([])
   const [problemaSeleccionado, setProblemaSeleccionado] = useState(null)
 
+  // Qué carpeta se está navegando ahora mismo en la vista tipo AoPS (null
+  // = en la raíz, viendo Putnam / OMMU Primera Ronda / OMMU Nacional).
+  // Esto es INDEPENDIENTE de categoriasSeleccionadas de arriba: ese es el
+  // filtro de casillas del sidebar (puede marcar varias carpetas a la
+  // vez); esto es "en qué carpeta estoy parado ahora" (una sola, como
+  // carpetas de verdad en una computadora).
+  const [carpetaActual, setCarpetaActual] = useState(null)
+
   // auth arranca leyendo lo que haya guardado en localStorage, para que si
   // ya habías iniciado sesión antes, sigas logueado después de recargar la
   // página. Si no hay nada guardado (o está corrupto), arranca en null.
@@ -900,6 +992,58 @@ export default function Problemas() {
     () => JSON.stringify({ años, temas, tipos, categoriasSeleccionadas }),
     [años, temas, tipos, categoriasSeleccionadas],
   )
+
+  // -------------------------------------------------------------------
+  // Navegación por carpetas (vista tipo AoPS)
+  // -------------------------------------------------------------------
+
+  // Si hay CUALQUIER filtro del sidebar marcado, ese filtro manda: se ve
+  // la cuadrícula plana de siempre (problemasFiltrados), sin importar en
+  // qué carpeta estén — es lo que uno espera al pedir "todos los de
+  // Álgebra". Las carpetas son solo la pantalla de bienvenida para cuando
+  // TODAVÍA no se pidió ningún filtro.
+  const hayFiltrosActivos =
+    años.length > 0 || temas.length > 0 || tipos.length > 0 || categoriasSeleccionadas.length > 0
+
+  // El nodo de la carpeta que se está viendo ahora mismo (null si estamos
+  // en la raíz). Es solo una búsqueda en un Map, no hace falta useMemo.
+  const carpetaAbierta = carpetaActual ? categoriasPorId.get(carpetaActual) : null
+
+  // Si la carpeta abierta tiene hijos, esas son las subcarpetas a
+  // mostrar (un nivel más adentro). Si NO tiene hijos (una hoja, ej.
+  // "2021"), ya no hay más carpetas — ahí es donde viven los problemas.
+  const subcarpetas = carpetaAbierta ? carpetaAbierta.children : arbolCategorias
+  const esCarpetaHoja = Boolean(carpetaAbierta) && carpetaAbierta.children.length === 0
+
+  const problemasDeCarpeta = useMemo(() => {
+    if (!esCarpetaHoja) return []
+    return problemas.filter((p) => p.category === carpetaActual)
+  }, [problemas, carpetaActual, esCarpetaHoja])
+
+  // Migas de pan: sube por los `.parent` de la carpeta actual hasta la
+  // raíz, para poder dibujar "Inicio / Putnam / 2021".
+  const rutaCarpeta = useMemo(() => {
+    const cadena = []
+    let nodo = carpetaAbierta
+    while (nodo) {
+      cadena.unshift(nodo)
+      nodo = nodo.parent ? categoriasPorId.get(nodo.parent) : null
+    }
+    return [{ _id: null, name: 'Inicio' }, ...cadena]
+  }, [carpetaAbierta, categoriasPorId])
+
+  // Qué se dibuja en el área principal, en una sola variable en vez de
+  // repetir las mismas condiciones varias veces en el JSX de abajo:
+  //  - 'filtros'   -> hay un filtro activo (o no hay categorías todavía,
+  //                   ej. si ese endpoint falló): cuadrícula plana.
+  //  - 'carpetas'  -> sin filtros, viendo una lista de carpetas.
+  //  - 'problemas' -> sin filtros, adentro de una carpeta hoja.
+  const vista =
+    hayFiltrosActivos || arbolCategorias.length === 0
+      ? 'filtros'
+      : esCarpetaHoja
+        ? 'problemas'
+        : 'carpetas'
 
   return (
     <section className="mx-auto max-w-6xl px-4 py-24 sm:px-6">
@@ -1015,7 +1159,8 @@ export default function Problemas() {
           />
         </motion.aside>
 
-        {/* Cuadrícula de tarjetas (antes era una tabla) */}
+        {/* Área principal: cuadrícula de tarjetas si hay un filtro activo,
+            o si no, la vista de carpetas estilo AoPS (ver `vista` arriba). */}
         <div className="min-w-0">
           {cargando && (
             <div className="flex items-center justify-center rounded-2xl border border-dashed border-brand-300 bg-[#FFFBF5]/95 py-16 text-brand-400">
@@ -1029,13 +1174,20 @@ export default function Problemas() {
             </div>
           )}
 
-          {!cargando && !errorCarga && problemasFiltrados.length === 0 && (
+          {/* Migas de pan: solo tienen sentido navegando carpetas, y solo
+              una vez que ya se entró a alguna (rutaCarpeta.length > 1 —
+              en la raíz, rutaCarpeta es nada más [{name:'Inicio'}]). */}
+          {!cargando && !errorCarga && vista !== 'filtros' && rutaCarpeta.length > 1 && (
+            <Breadcrumb ruta={rutaCarpeta} onNavigate={setCarpetaActual} />
+          )}
+
+          {!cargando && !errorCarga && vista === 'filtros' && problemasFiltrados.length === 0 && (
             <div className="flex items-center justify-center rounded-2xl border border-dashed border-brand-300 bg-[#FFFBF5]/95 py-16 text-brand-400">
               No hay problemas que coincidan con los filtros.
             </div>
           )}
 
-          {!cargando && !errorCarga && problemasFiltrados.length > 0 && (
+          {!cargando && !errorCarga && vista === 'filtros' && problemasFiltrados.length > 0 && (
             <motion.div
               key={filtrosKey}
               variants={staggerContainer(0.04)}
@@ -1044,6 +1196,56 @@ export default function Problemas() {
               className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
             >
               {problemasFiltrados.map((problema, i) => (
+                <ProblemaCard
+                  key={problema._id}
+                  problema={problema}
+                  tilt={i % 2 === 0 ? -1.2 : 1.2}
+                  onOpen={setProblemaSeleccionado}
+                />
+              ))}
+            </motion.div>
+          )}
+
+          {/* Vista de carpetas: Putnam / OMMU Primera Ronda / OMMU Nacional
+              en la raíz, o las subcarpetas (años) de la que se abrió. */}
+          {!cargando && !errorCarga && vista === 'carpetas' && (
+            <motion.div
+              key={carpetaActual ?? 'raiz'}
+              variants={staggerContainer(0.06)}
+              initial="hidden"
+              animate="show"
+              className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
+            >
+              {subcarpetas.map((nodo, i) => (
+                <FolderCard
+                  key={nodo._id}
+                  nodo={nodo}
+                  count={contarProblemas(nodo, problemas)}
+                  color={CATEGORY_ACCENTS[i % CATEGORY_ACCENTS.length]}
+                  tilt={i % 2 === 0 ? -1.2 : 1.2}
+                  onOpen={setCarpetaActual}
+                />
+              ))}
+            </motion.div>
+          )}
+
+          {/* Adentro de una carpeta hoja (ej. "2021"): ya no hay más
+              carpetas, aquí es donde por fin se ven los problemas. */}
+          {!cargando && !errorCarga && vista === 'problemas' && problemasDeCarpeta.length === 0 && (
+            <div className="flex items-center justify-center rounded-2xl border border-dashed border-brand-300 bg-[#FFFBF5]/95 py-16 text-brand-400">
+              Esta carpeta todavía no tiene problemas.
+            </div>
+          )}
+
+          {!cargando && !errorCarga && vista === 'problemas' && problemasDeCarpeta.length > 0 && (
+            <motion.div
+              key={carpetaActual}
+              variants={staggerContainer(0.04)}
+              initial="hidden"
+              animate="show"
+              className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
+            >
+              {problemasDeCarpeta.map((problema, i) => (
                 <ProblemaCard
                   key={problema._id}
                   problema={problema}
