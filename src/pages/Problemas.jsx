@@ -24,7 +24,9 @@ import { EASE, fadeUp, staggerContainer, popIn } from '../components/motion/vari
 //                           ahora con animación de entrada/salida.
 //   7. ProblemaCard      -> una tarjeta de la cuadrícula de problemas (antes
 //                           era una fila de tabla).
-//   8. Problemas         -> el componente principal: pide los problemas a la
+//   8. AutumnBackground  -> el fondo animado de "bosque de otoño" (fixed,
+//                           detrás de todo), + FallingLeaf, la hoja que cae.
+//   9. Problemas         -> el componente principal: pide los problemas a la
 //                           API, aplica los filtros, dibuja la cuadrícula y
 //                           decide qué modal mostrar.
 //
@@ -32,7 +34,8 @@ import { EASE, fadeUp, staggerContainer, popIn } from '../components/motion/vari
 // (fetch, filtros, autenticación, comentarios) — el rediseño solo cambia
 // el JSX/CSS de cómo se ve cada pieza, inspirado en el foro de AoPS
 // (estructura de carpetas + hilo por problema, que ya teníamos) y en el
-// estilo visual de Hack the North (color, movimiento, tarjetas "ladeadas").
+// estilo visual de Hack the North (color, movimiento, tarjetas "ladeadas",
+// y ahora un fondo temático animado).
 // ---------------------------------------------------------------------------
 
 // Dirección del backend. En desarrollo, Vite expone las variables que
@@ -515,7 +518,7 @@ function ProblemaModal({ problema, onClose, auth, onAuthSuccess, onAuthExpired }
         role="dialog"
         aria-modal="true"
         aria-labelledby="titulo-modal-problema"
-        className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-brand-50 shadow-2xl"
+        className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-[#FFFBF5] shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         {/* Franja de color: mismo gradiente de marca que el resto de la
@@ -628,7 +631,7 @@ function ProblemaCard({ problema, tilt, onOpen }) {
       variants={popIn(tilt)}
       whileHover={{ rotate: 0, y: -6, scale: 1.02 }}
       whileTap={{ scale: 0.97 }}
-      className="group flex flex-col gap-3 rounded-2xl border border-brand-200 bg-white p-5 text-left shadow-sm transition-shadow duration-200 hover:shadow-xl hover:shadow-brand-900/10"
+      className="group flex flex-col gap-3 rounded-2xl border border-brand-200 bg-[#FFFBF5] p-5 text-left shadow-md shadow-black/5 transition-shadow duration-200 hover:shadow-xl hover:shadow-brand-900/10"
     >
       <div className="flex items-start justify-between gap-3">
         <span className="rounded-md bg-brand-100 px-2 py-0.5 font-mono text-xs text-brand-500">
@@ -668,6 +671,141 @@ function ProblemaCard({ problema, tilt, onOpen }) {
         <span className="text-xs font-medium text-brand-500">{problema.exito}%</span>
       </div>
     </motion.button>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Fondo dinámico: paisaje de otoño (referencia visual: hackthenorth.com).
+// Es `fixed` (ligado a la VENTANA, no a la página completa) — por eso no
+// hace falta cubrir todo el alto del contenido: al hacer scroll se queda
+// quieto detrás, como un telón de fondo real, en vez de tener que ser tan
+// alto como los 93 problemas de la cuadrícula.
+//
+// Usa SOLO tonos de la paleta Axioma (rojo/naranja/dorado + un café oscuro
+// para dar profundidad) — nada de verde: así las "hojas" leen como otoño Y
+// la página se mantiene naranja, tal como se pidió.
+//
+// z-index: -z-10 (negativo) manda todo este bloque DETRÁS de cualquier
+// contenido normal de la página sin tener que tocarle el z-index a nada
+// más — así no hace falta cambiar cómo está armado el resto del archivo.
+// pointer-events-none evita que, al cubrir toda la ventana, bloquee clicks
+// en lo que sea que esté "encima".
+// ---------------------------------------------------------------------------
+const AUTUMN_BROWN = '#4a1508'
+const AUTUMN_BROWN_LIGHT = '#7a2e12'
+
+// Manchas borrosas y redondeadas que, apiladas cerca del piso de la
+// ventana, leen como una línea de copas de árboles vista de lejos.
+const TREE_BLOBS = [
+  { left: '-5%', bottom: '-6rem', size: 260, color: AUTUMN_BROWN, opacity: 0.55 },
+  { left: '10%', bottom: '-8rem', size: 320, color: AXIOMA_RED, opacity: 0.45 },
+  { left: '28%', bottom: '-5rem', size: 240, color: AUTUMN_BROWN_LIGHT, opacity: 0.5 },
+  { left: '45%', bottom: '-7rem', size: 300, color: AXIOMA_ORANGE, opacity: 0.4 },
+  { left: '63%', bottom: '-6rem', size: 260, color: AUTUMN_BROWN, opacity: 0.5 },
+  { left: '80%', bottom: '-8rem', size: 320, color: AXIOMA_RED, opacity: 0.45 },
+  { left: '95%', bottom: '-5rem', size: 240, color: AUTUMN_BROWN_LIGHT, opacity: 0.5 },
+]
+
+const LEAF_COLORS = [AXIOMA_RED, AXIOMA_ORANGE, AXIOMA_GOLD, AUTUMN_BROWN_LIGHT]
+const LEAVES = [
+  { left: '4%', delay: 0, duration: 13, size: 18, drift: 40 },
+  { left: '14%', delay: 3, duration: 16, size: 14, drift: 30 },
+  { left: '24%', delay: 6, duration: 12, size: 20, drift: 50 },
+  { left: '36%', delay: 1.5, duration: 15, size: 16, drift: 35 },
+  { left: '48%', delay: 5, duration: 14, size: 18, drift: 45 },
+  { left: '60%', delay: 2, duration: 17, size: 15, drift: 30 },
+  { left: '72%', delay: 7, duration: 13, size: 19, drift: 40 },
+  { left: '82%', delay: 4, duration: 16, size: 14, drift: 35 },
+  { left: '90%', delay: 0.5, duration: 12, size: 17, drift: 42 },
+  { left: '55%', delay: 9, duration: 18, size: 13, drift: 28 },
+].map((hoja, i) => ({ ...hoja, color: LEAF_COLORS[i % LEAF_COLORS.length] }))
+
+// Una hoja cayendo: el mismo truco que FloatingSymbol.jsx (loop infinito
+// con una transición separada por propiedad), pero cayendo de arriba a
+// abajo de la ventana en vez de flotar en un solo punto. Usamos `vh` para
+// `y`: como el contenedor padre es `fixed` (mide exactamente la ventana),
+// esto siempre va de "justo arriba de lo visible" a "justo abajo de lo
+// visible" sin importar en qué parte de la página esté la ventana.
+function FallingLeaf({ left, delay, duration, size, color, drift }) {
+  return (
+    <motion.svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      className="absolute top-0"
+      style={{ left }}
+      initial={{ y: '-10vh', opacity: 0 }}
+      animate={{
+        y: '115vh',
+        x: [0, drift, -drift * 0.6, 0],
+        rotate: [0, 30, -25, 10, 0],
+        opacity: [0, 1, 1, 0.9, 0],
+      }}
+      transition={{
+        y: { duration, repeat: Infinity, ease: 'linear', delay },
+        x: { duration, repeat: Infinity, ease: 'easeInOut', delay },
+        rotate: { duration: duration * 0.85, repeat: Infinity, ease: 'easeInOut', delay },
+        opacity: { duration, repeat: Infinity, ease: 'linear', delay, times: [0, 0.08, 0.85, 1] },
+      }}
+    >
+      <path d="M12 2C7 6 4 11 4 15a8 8 0 0 0 16 0c0-4-3-9-8-13z" fill={color} />
+      <path d="M12 3v18" stroke="rgba(0,0,0,0.18)" strokeWidth="0.8" />
+    </motion.svg>
+  )
+}
+
+function AutumnBackground() {
+  return (
+    <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden="true">
+      {/* Cielo: crema arriba -> rojo profundo abajo, todo dentro de la
+          paleta de marca de siempre (ver AXIOMA_* arriba) */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background: `linear-gradient(180deg, #FFF3E2 0%, #FDD9A0 20%, ${AXIOMA_GOLD} 40%, ${AXIOMA_ORANGE} 58%, ${AXIOMA_RED} 76%, ${AUTUMN_BROWN} 100%)`,
+        }}
+      />
+
+      {/* "Sol" de otoño: un brillo que respira despacio (escala + opacidad
+          en loop) — la parte "dinámica" del cielo, no es una imagen fija */}
+      <motion.div
+        className="absolute -top-40 left-1/2 h-[34rem] w-[34rem] -translate-x-1/2 rounded-full blur-3xl"
+        style={{ background: 'radial-gradient(circle, #FFF3E2cc 0%, transparent 70%)' }}
+        animate={{ opacity: [0.6, 0.9, 0.6], scale: [1, 1.06, 1] }}
+        transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
+      />
+
+      {/* Copas de árboles: manchas redondeadas y borrosas formando una
+          línea de bosque cerca del piso de la ventana */}
+      <div className="absolute inset-x-0 bottom-0 h-[60%]">
+        {TREE_BLOBS.map((b, i) => (
+          <div
+            key={i}
+            className="absolute rounded-[46%] blur-md"
+            style={{
+              left: b.left,
+              bottom: b.bottom,
+              width: b.size,
+              height: b.size * 0.75,
+              backgroundColor: b.color,
+              opacity: b.opacity,
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Se funde con el crema del contenido: para cuando la vista llega a
+          la cuadrícula de problemas, el fondo ya no compite con el texto */}
+      <div
+        className="absolute inset-x-0 bottom-0 h-[50%]"
+        style={{ background: 'linear-gradient(180deg, transparent 0%, #FAF3EA 100%)' }}
+      />
+
+      {LEAVES.map((hoja, i) => (
+        <FallingLeaf key={i} {...hoja} />
+      ))}
+    </div>
   )
 }
 
@@ -778,6 +916,8 @@ export default function Problemas() {
 
   return (
     <section className="mx-auto max-w-6xl px-4 py-24 sm:px-6">
+      <AutumnBackground />
+
       {/* Encabezado: mismo fondo shader animado que el Hero (MeshGradient +
           símbolos flotantes), a menor escala — así la página de Problemas
           se siente parte del mismo sitio en vez de una página aparte. */}
@@ -785,7 +925,7 @@ export default function Problemas() {
         initial="hidden"
         animate="show"
         variants={fadeUp}
-        className="relative mb-12 overflow-hidden rounded-3xl px-6 py-10 text-center sm:px-10"
+        className="relative mb-12 overflow-hidden rounded-3xl px-6 py-10 text-center shadow-2xl shadow-black/20 sm:px-10"
         style={{ backgroundColor: AXIOMA_DARK }}
       >
         <div className="pointer-events-none absolute inset-0">
@@ -852,7 +992,7 @@ export default function Problemas() {
           initial="hidden"
           animate="show"
           variants={fadeUp}
-          className="flex flex-col gap-6 self-start rounded-2xl border border-brand-200 bg-brand-50 p-5 md:sticky md:top-28"
+          className="flex flex-col gap-6 self-start rounded-2xl border border-white/60 bg-[#FFFBF5]/90 p-5 shadow-lg shadow-black/5 backdrop-blur-md md:sticky md:top-28"
         >
           <div className="flex items-center gap-2 border-b border-brand-200 pb-3">
             <span className="font-serif text-lg italic text-[#E57505]">∫</span>
@@ -886,7 +1026,7 @@ export default function Problemas() {
         {/* Cuadrícula de tarjetas (antes era una tabla) */}
         <div className="min-w-0">
           {cargando && (
-            <div className="flex items-center justify-center rounded-2xl border border-dashed border-brand-300 bg-brand-50 py-16 text-brand-400">
+            <div className="flex items-center justify-center rounded-2xl border border-dashed border-brand-300 bg-[#FFFBF5]/95 py-16 text-brand-400">
               Cargando problemas...
             </div>
           )}
@@ -898,7 +1038,7 @@ export default function Problemas() {
           )}
 
           {!cargando && !errorCarga && problemasFiltrados.length === 0 && (
-            <div className="flex items-center justify-center rounded-2xl border border-dashed border-brand-300 bg-brand-50 py-16 text-brand-400">
+            <div className="flex items-center justify-center rounded-2xl border border-dashed border-brand-300 bg-[#FFFBF5]/95 py-16 text-brand-400">
               No hay problemas que coincidan con los filtros.
             </div>
           )}
