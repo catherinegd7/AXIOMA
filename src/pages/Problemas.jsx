@@ -24,7 +24,7 @@ import { EASE, fadeUp, staggerContainer, popIn } from '../components/motion/vari
 //                           ahora con animación de entrada/salida.
 //   7. ProblemaCard      -> una tarjeta de la cuadrícula de problemas (antes
 //                           era una fila de tabla).
-//   8. AutumnBackground  -> el fondo animado de "bosque de otoño" (fixed,
+//   8. ForestBackground   -> el fondo animado de bosque verde (fixed,
 //                           detrás de todo), + FallingLeaf, la hoja que cae.
 //   9. Problemas         -> el componente principal: pide los problemas a la
 //                           API, aplica los filtros, dibuja la cuadrícula y
@@ -634,10 +634,11 @@ function ProblemaModal({ problema, onClose, auth, onAuthSuccess, onAuthExpired }
 }
 
 // Una tarjeta de la cuadrícula de problemas — reemplaza la fila de tabla
-// que había antes. `tilt` es un pequeño ángulo (en grados) que la deja
-// "ladeada" como una nota pegada en un pizarrón; al pasar el mouse se
-// endereza y se levanta un poco (whileHover), inspirado en las tarjetas de
-// hackthenorth.com.
+// que había antes. `tilt` es un ángulo (en grados) para la animación de
+// entrada (popIn) — hoy siempre se llama con 0 (tarjetas paralelas entre
+// sí, alineadas prolijamente), pero queda como parámetro por si algún día
+// se quiere volver a ladear alguna. Al pasar el mouse se levanta un poco
+// (whileHover), inspirado en las tarjetas de hackthenorth.com.
 function ProblemaCard({ problema, tilt, onOpen }) {
   const dificultadClass = DIFICULTAD_STYLES[problema.dificultad]
   const dificultadBg = DIFICULTAD_BG[problema.dificultad]
@@ -748,15 +749,17 @@ function Breadcrumb({ ruta, onNavigate }) {
 }
 
 // ---------------------------------------------------------------------------
-// Fondo dinámico: paisaje de otoño (referencia visual: hackthenorth.com).
+// Fondo dinámico: un bosque verde (referencia visual: hackthenorth.com).
 // Es `fixed` (ligado a la VENTANA, no a la página completa) — por eso no
 // hace falta cubrir todo el alto del contenido: al hacer scroll se queda
 // quieto detrás, como un telón de fondo real, en vez de tener que ser tan
 // alto como los 93 problemas de la cuadrícula.
 //
-// Usa SOLO tonos de la paleta Axioma (rojo/naranja/dorado + un café oscuro
-// para dar profundidad) — nada de verde: así las "hojas" leen como otoño Y
-// la página se mantiene naranja, tal como se pidió.
+// A propósito el bosque es VERDE, no naranja: el naranja/rojo/dorado de
+// Axioma queda para las hojas que caen, el ícono del panda rojo, y toda la
+// UI (botones, estampas de dificultad, chips activos). Sobre un fondo
+// naranja, esos detalles naranjas se perdían; sobre uno verde, resaltan
+// — verde y naranja son casi opuestos en la rueda de color.
 //
 // z-index: -z-10 (negativo) manda todo este bloque DETRÁS de cualquier
 // contenido normal de la página sin tener que tocarle el z-index a nada
@@ -764,22 +767,98 @@ function Breadcrumb({ ruta, onNavigate }) {
 // pointer-events-none evita que, al cubrir toda la ventana, bloquee clicks
 // en lo que sea que esté "encima".
 // ---------------------------------------------------------------------------
-const AUTUMN_BROWN = '#4a1508'
-const AUTUMN_BROWN_LIGHT = '#7a2e12'
+const FOREST_DEEPEST = '#0d2114'
+const FOREST_DEEP = '#1c4227'
+const FOREST_MID = '#2f6b3a'
+const FOREST_LIGHT = '#5c9a54'
+const FOREST_BARK = '#3a2a18'
 
-// Manchas borrosas y redondeadas que, apiladas cerca del piso de la
-// ventana, leen como una línea de copas de árboles vista de lejos.
-const TREE_BLOBS = [
-  { left: '-5%', bottom: '-6rem', size: 260, color: AUTUMN_BROWN, opacity: 0.55 },
-  { left: '10%', bottom: '-8rem', size: 320, color: AXIOMA_RED, opacity: 0.45 },
-  { left: '28%', bottom: '-5rem', size: 240, color: AUTUMN_BROWN_LIGHT, opacity: 0.5 },
-  { left: '45%', bottom: '-7rem', size: 300, color: AXIOMA_ORANGE, opacity: 0.4 },
-  { left: '63%', bottom: '-6rem', size: 260, color: AUTUMN_BROWN, opacity: 0.5 },
-  { left: '80%', bottom: '-8rem', size: 320, color: AXIOMA_RED, opacity: 0.45 },
-  { left: '95%', bottom: '-5rem', size: 240, color: AUTUMN_BROWN_LIGHT, opacity: 0.5 },
+// Café/rojizo oscuro que SÍ sigue haciendo falta: las marcas de la cara del
+// panda y, como antes, una de las tonalidades de las hojas que caen.
+const RUSTY_BROWN = '#7a2e12'
+
+// Arma una "capa" del bosque: `cantidad` copas de árbol repartidas a lo
+// ancho de la pantalla, con una variación suave (no aleatoria — mismo
+// resultado cada vez que carga la página) para que no se vean repetidas en
+// fila. `pico` es qué tan arriba del borde inferior de la ventana asoma la
+// copa más alta de esta capa (en rem).
+//
+// El desenfoque (blur) NO se lo damos a cada copa por separado — ponerle
+// un filtro CSS `blur()` propio a 18 elementos distintos resultó pesado
+// de verdad (el navegador tiene que componer cada uno en su propia capa):
+// se notaba porque la animación de entrada de las tarjetas se quedaba a
+// medias, como en cámara lenta, los primeros segundos. En vez de eso, cada
+// CAPA completa se desenfoca UNA sola vez (ver el <div> que envuelve a
+// cada capa más abajo) — mismo resultado visual, muchísimo menos trabajo.
+function generarCapaBosque(cantidad, { colores, ancho, variacionAncho, alto, variacionAlto, pico, variacionPico, opacidad }) {
+  return Array.from({ length: cantidad }, (_, i) => {
+    const t = cantidad === 1 ? 0.5 : i / (cantidad - 1)
+    const bamboleo = Math.sin(i * 2.4) // entre -1 y 1, variación suave y fija
+    const anchoAqui = ancho + bamboleo * variacionAncho
+    const altoAqui = alto + bamboleo * variacionAlto
+    const picoAqui = pico + bamboleo * variacionPico
+    return {
+      left: `${t * 100 - 6 + bamboleo * 5}%`,
+      bottom: `${picoAqui - altoAqui}rem`,
+      width: anchoAqui,
+      height: `${altoAqui}rem`,
+      color: colores[i % colores.length],
+      opacity: opacidad,
+    }
+  })
+}
+
+// Tres capas = tres "distancias": lejos (colinas grandes y borrosas),
+// media, y cerca (copas más chicas pero más nítidas y saturadas — las que
+// de verdad se notan). Apilarlas es lo que le da profundidad al bosque.
+// Cada capa trae su propio `blur` (más borrosa = "más lejos", la misma
+// perspectiva atmosférica que usan las ilustraciones de paisajes reales).
+const FOREST_LAYERS = [
+  {
+    blur: 14,
+    blobs: generarCapaBosque(5, {
+      colores: [FOREST_DEEPEST, FOREST_DEEP],
+      ancho: 340, variacionAncho: 40,
+      alto: 9, variacionAlto: 1.5,
+      pico: 5, variacionPico: 1,
+      opacidad: 0.5,
+    }),
+  },
+  {
+    blur: 7,
+    blobs: generarCapaBosque(6, {
+      colores: [FOREST_DEEP, FOREST_MID],
+      ancho: 270, variacionAncho: 35,
+      alto: 8, variacionAlto: 1.2,
+      pico: 6.5, variacionPico: 1,
+      opacidad: 0.62,
+    }),
+  },
+  {
+    blur: 2,
+    blobs: generarCapaBosque(7, {
+      colores: [FOREST_MID, FOREST_LIGHT],
+      ancho: 210, variacionAncho: 30,
+      alto: 7, variacionAlto: 1,
+      pico: 8.5, variacionPico: 1.2,
+      opacidad: 0.85,
+    }),
+  },
 ]
 
-const LEAF_COLORS = [AXIOMA_RED, AXIOMA_ORANGE, AXIOMA_GOLD, AUTUMN_BROWN_LIGHT]
+// Troncos: nada más una pista — rectángulos angostos con la punta
+// redondeada, pegados al piso de la ventana, DIBUJADOS ANTES que las
+// copas (capa "cerca") para que la copa tape la unión tronco-copa y solo
+// se vea la base del tronco asomando por debajo.
+const TREE_TRUNKS = [
+  { left: '9%', width: 9, height: 58 },
+  { left: '24%', width: 7, height: 46 },
+  { left: '48%', width: 10, height: 64 },
+  { left: '66%', width: 8, height: 50 },
+  { left: '85%', width: 9, height: 56 },
+]
+
+const LEAF_COLORS = [AXIOMA_RED, AXIOMA_ORANGE, AXIOMA_GOLD, RUSTY_BROWN]
 const LEAVES = [
   { left: '4%', delay: 0, duration: 13, size: 18, drift: 40 },
   { left: '14%', delay: 3, duration: 16, size: 14, drift: 30 },
@@ -828,45 +907,138 @@ function FallingLeaf({ left, delay, duration, size, color, drift }) {
   )
 }
 
-function AutumnBackground() {
+// Café/crema/negro reservados para la cara del panda — nombres propios en
+// vez de reusar AXIOMA_* directamente porque aquí no representan "marca",
+// representan "pelaje"/"cara" (aunque el pelaje SÍ es el mismo naranja
+// que ya usa el resto de la página, a propósito).
+const PANDA_CREAM = '#fdf3e7'
+const PANDA_DARK = AXIOMA_DARK
+
+// La mascota: un panda rojo asomado entre las copas, como si estuviera
+// agarrado de una rama justo fuera de cuadro. Dibujado con formas simples
+// (círculos y óvalos) en vez de un ilustración detallada — el mismo
+// espíritu "plano y juguetón" que ya tienen los íconos de hackthenorth.com.
+// Respira despacio (sube/baja + se ladea un poco) y de vez en cuando
+// parpadea (los ojos son <motion.g> aparte, escalados en Y casi a 0 un
+// instante) — el tipo de detalle chiquito que hace que algo se sienta vivo
+// en vez de una imagen pegada.
+function RedPandaMascot({ className }) {
+  const parpadeo = {
+    animate: { scaleY: [1, 1, 0.1, 1, 1] },
+    transition: { duration: 5, repeat: Infinity, ease: 'easeInOut', times: [0, 0.9, 0.94, 0.98, 1] },
+  }
   return (
-    <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden" aria-hidden="true">
-      {/* Cielo: crema arriba -> rojo profundo abajo, todo dentro de la
-          paleta de marca de siempre (ver AXIOMA_* arriba) */}
+    <motion.svg
+      aria-hidden="true"
+      viewBox="0 0 100 100"
+      className={className}
+      animate={{ y: [0, -3, 0], rotate: [0, 1.5, 0, -1.5, 0] }}
+      transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
+    >
+      {/* orejas, con una tuftita clara adentro */}
+      <circle cx="27" cy="24" r="12" fill={AXIOMA_ORANGE} />
+      <circle cx="27" cy="26" r="5.5" fill={PANDA_CREAM} />
+      <circle cx="73" cy="24" r="12" fill={AXIOMA_ORANGE} />
+      <circle cx="73" cy="26" r="5.5" fill={PANDA_CREAM} />
+
+      {/* cabeza */}
+      <circle cx="50" cy="50" r="32" fill={AXIOMA_ORANGE} />
+
+      {/* máscara clara de la cara */}
+      <ellipse cx="50" cy="60" rx="23" ry="21" fill={PANDA_CREAM} />
+
+      {/* las marcas oscuras bajo los ojos — lo que hace que un círculo
+          naranja con manchas blancas se lea como "panda rojo" y no
+          cualquier otro animal */}
+      <ellipse cx="39" cy="50" rx="6" ry="10" fill={AXIOMA_RED} transform="rotate(-15 39 50)" />
+      <ellipse cx="61" cy="50" rx="6" ry="10" fill={AXIOMA_RED} transform="rotate(15 61 50)" />
+
+      <motion.g style={{ transformOrigin: '39px 48px' }} {...parpadeo}>
+        <circle cx="39" cy="48" r="4" fill={PANDA_DARK} />
+      </motion.g>
+      <circle cx="40.5" cy="46.5" r="1.2" fill="white" />
+      <motion.g style={{ transformOrigin: '61px 48px' }} {...parpadeo}>
+        <circle cx="61" cy="48" r="4" fill={PANDA_DARK} />
+      </motion.g>
+      <circle cx="62.5" cy="46.5" r="1.2" fill="white" />
+
+      <ellipse cx="50" cy="64" rx="4.5" ry="3.2" fill={PANDA_DARK} />
+      <path d="M44 70 Q47 73 50 70 Q53 73 56 70" stroke={PANDA_DARK} strokeWidth="1.5" fill="none" strokeLinecap="round" />
+
+      {/* patitas asomando abajo, como agarrado de la rama que lo tapa */}
+      <ellipse cx="28" cy="94" rx="9" ry="6" fill={PANDA_DARK} />
+      <ellipse cx="72" cy="94" rx="9" ry="6" fill={PANDA_DARK} />
+    </motion.svg>
+  )
+}
+
+function ForestBackground() {
+  return (
+    <div className="pointer-events-none fixed inset-0 -z-10 isolate overflow-hidden" aria-hidden="true">
+      {/* Cielo: de un blanco con un toque de verde arriba (niebla de
+          mañana) a un verde bosque profundo abajo — SIN pasar por naranja,
+          para que el naranja de las hojas/UI resalte y no se mezcle. */}
       <div
         className="absolute inset-0"
         style={{
-          background: `linear-gradient(180deg, #FFF3E2 0%, #FDD9A0 20%, ${AXIOMA_GOLD} 40%, ${AXIOMA_ORANGE} 58%, ${AXIOMA_RED} 76%, ${AUTUMN_BROWN} 100%)`,
+          background: `linear-gradient(180deg, #f7faf0 0%, #e4f0dc 22%, #bfe0b8 42%, ${FOREST_LIGHT} 60%, ${FOREST_MID} 76%, ${FOREST_DEEP} 90%, ${FOREST_DEEPEST} 100%)`,
         }}
       />
 
-      {/* "Sol" de otoño: un brillo que respira despacio (escala + opacidad
-          en loop) — la parte "dinámica" del cielo, no es una imagen fija */}
+      {/* Sol filtrándose entre las hojas: un brillo dorado que respira
+          despacio — cálido a propósito, para que combine con las hojas
+          que caen en vez de con el cielo verde. */}
       <motion.div
         className="absolute -top-40 left-1/2 h-[34rem] w-[34rem] -translate-x-1/2 rounded-full blur-3xl"
-        style={{ background: 'radial-gradient(circle, #FFF3E2cc 0%, transparent 70%)' }}
-        animate={{ opacity: [0.6, 0.9, 0.6], scale: [1, 1.06, 1] }}
+        style={{ background: `radial-gradient(circle, ${AXIOMA_GOLD}66 0%, transparent 70%)` }}
+        animate={{ opacity: [0.5, 0.85, 0.5], scale: [1, 1.07, 1] }}
         transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
       />
 
-      {/* Copas de árboles: manchas redondeadas y borrosas formando una
-          línea de bosque cerca del piso de la ventana */}
-      <div className="absolute inset-x-0 bottom-0 h-[60%]">
-        {TREE_BLOBS.map((b, i) => (
-          <div
-            key={i}
-            className="absolute rounded-[46%] blur-md"
-            style={{
-              left: b.left,
-              bottom: b.bottom,
-              width: b.size,
-              height: b.size * 0.75,
-              backgroundColor: b.color,
-              opacity: b.opacity,
-            }}
-          />
+
+      {/* Troncos, dibujados ANTES que las copas para que la copa tape la
+          unión y solo se vea la base asomando. */}
+      {TREE_TRUNKS.map((t, i) => (
+        <div
+          key={i}
+          className="absolute bottom-0 rounded-t-full"
+          style={{ left: t.left, width: t.width, height: t.height, backgroundColor: FOREST_BARK, opacity: 0.7 }}
+        />
+      ))}
+
+      {/* Copas del bosque: 3 capas (lejos/media/cerca, ver FOREST_LAYERS)
+          apiladas para dar sensación de profundidad — más borrosas y
+          apagadas las de atrás, más nítidas y saturadas las de adelante.
+          El blur va en el CONTENEDOR de cada capa (una vez), no en cada
+          copa suelta — ver la nota en generarCapaBosque de por qué. */}
+      <div className="absolute inset-x-0 bottom-0 h-[70%]">
+        {FOREST_LAYERS.map((capa, i) => (
+          <div key={i} className="absolute inset-0" style={{ filter: `blur(${capa.blur}px)` }}>
+            {capa.blobs.map((b, j) => (
+              <div
+                key={j}
+                className="absolute rounded-[46%]"
+                style={{
+                  left: b.left,
+                  bottom: b.bottom,
+                  width: b.width,
+                  height: b.height,
+                  backgroundColor: b.color,
+                  opacity: b.opacity,
+                }}
+              />
+            ))}
+          </div>
         ))}
       </div>
+
+      {/* Oculto por debajo de `md`: ahí el sidebar de filtros (que
+          también se activa en `md`, ver el grid y el aside más abajo)
+          cae apilado justo debajo del encabezado en vez de al costado, y
+          el panda terminaba tapando las casillas de Año. En pantallas
+          chicas cada pixel importa más — mejor no competir con los
+          controles. */}
+      <RedPandaMascot className="absolute bottom-[7.5rem] left-1/2 hidden -translate-x-1/2 drop-shadow-lg md:block md:h-36 md:w-36" />
 
       {/* Se funde con el crema del contenido: para cuando la vista llega a
           la cuadrícula de problemas, el fondo ya no compite con el texto */}
@@ -1047,7 +1219,7 @@ export default function Problemas() {
 
   return (
     <section className="mx-auto max-w-6xl px-4 py-24 sm:px-6">
-      <AutumnBackground />
+      <ForestBackground />
 
       {/* Encabezado: mismo fondo shader animado que el Hero (MeshGradient +
           símbolos flotantes), a menor escala — así la página de Problemas
@@ -1195,11 +1367,11 @@ export default function Problemas() {
               animate="show"
               className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
             >
-              {problemasFiltrados.map((problema, i) => (
+              {problemasFiltrados.map((problema) => (
                 <ProblemaCard
                   key={problema._id}
                   problema={problema}
-                  tilt={i % 2 === 0 ? -1.2 : 1.2}
+                  tilt={0}
                   onOpen={setProblemaSeleccionado}
                 />
               ))}
@@ -1222,7 +1394,7 @@ export default function Problemas() {
                   nodo={nodo}
                   count={contarProblemas(nodo, problemas)}
                   color={CATEGORY_ACCENTS[i % CATEGORY_ACCENTS.length]}
-                  tilt={i % 2 === 0 ? -1.2 : 1.2}
+                  tilt={0}
                   onOpen={setCarpetaActual}
                 />
               ))}
@@ -1245,11 +1417,11 @@ export default function Problemas() {
               animate="show"
               className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
             >
-              {problemasDeCarpeta.map((problema, i) => (
+              {problemasDeCarpeta.map((problema) => (
                 <ProblemaCard
                   key={problema._id}
                   problema={problema}
-                  tilt={i % 2 === 0 ? -1.2 : 1.2}
+                  tilt={0}
                   onOpen={setProblemaSeleccionado}
                 />
               ))}
