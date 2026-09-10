@@ -183,6 +183,17 @@ const DIFICULTAD_BG = {
 // está cada carpeta, sin depender solo de la indentación.
 const CATEGORY_ACCENTS = [AXIOMA_RED, AXIOMA_ORANGE, AXIOMA_GOLD]
 
+// El título que se muestra en pantalla: competencia + año + número de
+// problema (ej. "Putnam 2025 — Problema B6"), en vez de la frase
+// descriptiva que trae la base de datos en `problema.titulo`. No hace
+// falta ningún dato nuevo para esto — `codigo` YA termina en el número
+// después del último guion, sin importar cuántos guiones tenga el prefijo
+// ("OMMU-NAC-2026-3" o "PUTNAM-2025-B6" ambos funcionan igual).
+function formatearTitulo(problema) {
+  const numero = problema.codigo.split('-').pop()
+  return `${problema.tipo} ${problema.año} — Problema ${numero}`
+}
+
 // Un "chip" de filtro: se ve como una pastilla de color. Por dentro sigue
 // siendo un <input type="checkbox"> real (oculto con sr-only) para que el
 // teclado y los lectores de pantalla lo sigan tratando como una casilla de
@@ -528,7 +539,7 @@ function ProblemaModal({ problema, onClose, auth, onAuthSuccess, onAuthExpired }
         <div className="flex min-h-0 flex-1 flex-col p-6">
           <div className="mb-4 flex items-start justify-between gap-4">
             <h3 id="titulo-modal-problema" className="text-xl font-semibold text-brand-900">
-              {problema.titulo}
+              {formatearTitulo(problema)}
             </h3>
             <button
               type="button"
@@ -539,13 +550,10 @@ function ProblemaModal({ problema, onClose, auth, onAuthSuccess, onAuthExpired }
               ✕
             </button>
           </div>
-          <p className="mb-4 flex flex-wrap gap-1.5">
-            <span className="rounded-full bg-brand-100 px-2 py-0.5 font-mono text-xs text-brand-500">
-              {problema.codigo}
-            </span>
+          {/* codigo/tipo/año ya no se repiten aquí: formatearTitulo() de
+              arriba ya los dice todos — lo único que faltaba es el tema. */}
+          <p className="mb-4">
             <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs text-brand-500">{problema.tema}</span>
-            <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs text-brand-500">{problema.tipo}</span>
-            <span className="rounded-full bg-brand-100 px-2 py-0.5 text-xs text-brand-500">{problema.año}</span>
           </p>
           {/* div, no <p>: una fórmula en "display mode" se renderiza como un
               <div>, y un <div> no puede vivir legalmente dentro de un <p> en
@@ -633,9 +641,12 @@ function ProblemaCard({ problema, tilt, onOpen }) {
       whileTap={{ scale: 0.97 }}
       className="group flex flex-col gap-3 rounded-2xl border border-brand-200 bg-[#FFFBF5] p-5 text-left shadow-md shadow-black/5 transition-shadow duration-200 hover:shadow-xl hover:shadow-brand-900/10"
     >
+      {/* codigo/tipo/año ya no van aquí como etiquetas sueltas: el título
+          de abajo (formatearTitulo) ya dice competencia + año + número.
+          Lo único que sigue haciendo falta a simple vista es el tema. */}
       <div className="flex items-start justify-between gap-3">
-        <span className="rounded-md bg-brand-100 px-2 py-0.5 font-mono text-xs text-brand-500">
-          {problema.codigo}
+        <span className="rounded-full bg-brand-100 px-2.5 py-1 text-[11px] font-medium text-brand-600">
+          {problema.tema}
         </span>
         <span
           className={`rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide shadow-sm ${dificultadClass}`}
@@ -646,14 +657,8 @@ function ProblemaCard({ problema, tilt, onOpen }) {
       </div>
 
       <h3 className="text-base font-semibold text-brand-900 transition-colors group-hover:text-[#B70B0D]">
-        {problema.titulo}
+        {formatearTitulo(problema)}
       </h3>
-
-      <div className="flex flex-wrap gap-1.5 text-[11px] text-brand-500">
-        <span className="rounded-full bg-brand-100 px-2 py-0.5">{problema.tema}</span>
-        <span className="rounded-full bg-brand-100 px-2 py-0.5">{problema.tipo}</span>
-        <span className="rounded-full bg-brand-100 px-2 py-0.5">{problema.año}</span>
-      </div>
 
       {/* Barra de % de éxito: crece de 0 al valor real cuando la tarjeta
           aparece — el mismo tipo de animación "cuenta hacia arriba" que ya
@@ -896,13 +901,11 @@ export default function Problemas() {
     })
   }, [problemas, años, temas, tipos, categoriasSeleccionadas, categoriasEfectivas])
 
-  // Estadísticas para los contadores animados del encabezado — se calculan
-  // solas a partir de los problemas ya cargados, no son datos nuevos.
+  // Estadística para el contador animado del encabezado — se calcula sola
+  // a partir de los problemas ya cargados, no es un dato nuevo. (Antes
+  // también había un "éxito promedio" aquí; se quitó por ambiguo — no
+  // queda claro promedio de qué exactamente sin abrir cada problema.)
   const temasCubiertos = useMemo(() => new Set(problemas.map((p) => p.tema)).size, [problemas])
-  const exitoPromedio = useMemo(() => {
-    if (problemas.length === 0) return 0
-    return Math.round(problemas.reduce((suma, p) => suma + p.exito, 0) / problemas.length)
-  }, [problemas])
 
   // Llave que cambia cada vez que cambia algún filtro. Se la damos como
   // `key` a la cuadrícula de tarjetas: cuando React ve una key distinta,
@@ -975,10 +978,6 @@ export default function Problemas() {
                 <Counter value={temasCubiertos} className="text-2xl font-bold text-white sm:text-3xl" />
                 <span className="text-[11px] uppercase tracking-wide text-white/60">Temas</span>
               </div>
-              <div className="flex flex-col items-center">
-                <Counter value={exitoPromedio} suffix="%" className="text-2xl font-bold text-white sm:text-3xl" />
-                <span className="text-[11px] uppercase tracking-wide text-white/60">Éxito promedio</span>
-              </div>
             </div>
           )}
         </div>
@@ -987,12 +986,21 @@ export default function Problemas() {
       <div className="grid grid-cols-1 gap-8 md:grid-cols-[240px_1fr]">
         {/* Sidebar de filtros — misma estructura y lógica de siempre
             (Año / Tema / Tipo / Carpetas), solo con look nuevo. Se queda
-            fija (sticky) al hacer scroll por la cuadrícula de problemas. */}
+            fija (sticky) al hacer scroll por la cuadrícula de problemas.
+
+            md:max-h-[...] + md:overflow-y-auto: sin esto, un sticky más
+            alto que la pantalla (Año + Tema + Tipo + Carpetas junto pueden
+            medir más que el alto visible) queda "pegado" en top-28 sin
+            forma de ver su parte de abajo — hasta que el scroll de toda la
+            página llega al FINAL de la cuadrícula de problemas y recién
+            ahí el sidebar se "despega" y se mueve. Dándole su propio alto
+            máximo + scroll interno, el sidebar se desplaza solo, sin
+            depender de qué tan abajo estés en los problemas. */}
         <motion.aside
           initial="hidden"
           animate="show"
           variants={fadeUp}
-          className="flex flex-col gap-6 self-start rounded-2xl border border-white/60 bg-[#FFFBF5]/90 p-5 shadow-lg shadow-black/5 backdrop-blur-md md:sticky md:top-28"
+          className="flex flex-col gap-6 self-start rounded-2xl border border-white/60 bg-[#FFFBF5]/90 p-5 shadow-lg shadow-black/5 backdrop-blur-md md:sticky md:top-28 md:max-h-[calc(100vh-9rem)] md:overflow-y-auto"
         >
           <div className="flex items-center gap-2 border-b border-brand-200 pb-3">
             <span className="font-serif text-lg italic text-[#E57505]">∫</span>
