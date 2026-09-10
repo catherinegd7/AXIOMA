@@ -35,7 +35,7 @@ localmente:
    node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
    # pega el resultado como valor de JWT_SECRET en tu .env
    ```
-3. **Instala dependencias y llena la base de datos con datos de ejemplo**:
+3. **Instala dependencias y llena la base de datos** (93 problemas reales de Putnam y la OMMU, ver `server/src/data/problemasReales.js`):
    ```bash
    npm install
    npm run seed
@@ -108,8 +108,11 @@ el proyecto" arriba para levantarlo localmente.
   app.js                  # Arma la app de Express (rutas, cors, rate limit) —
                            # sin conectar a Mongo ni escuchar en un puerto
   server.js               # El entry point real: conecta Mongo + app.listen()
-  seed.js                 # Llena la base de datos con datos de ejemplo
+  seed.js                 # Llena la base de datos con el contenido de /data
   test-setup.js           # Conecta a una base de datos aparte para las pruebas
+  /data
+    problemasReales.js    # 93 problemas reales (Putnam, OMMU) — agregar más
+                           # problemas es editar este archivo, no seed.js
   /models                 # Blueprints de Mongoose: User, Category, Problem, Comment
   /routes                 # auth, categories, problems, comments
   /middleware
